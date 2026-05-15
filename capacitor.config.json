@@ -1,0 +1,12 @@
+{
+  "appId": "com.takvimed.app",
+  "appName": "TakviMed",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic"
+  }
+}

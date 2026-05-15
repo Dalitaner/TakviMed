@@ -1,0 +1,21 @@
+:root {
+  --primary: #1E88C8;
+  --primary-dark: #0F5F8F;
+  --secondary: #58C66B;
+  --secondary-dark: #2E9F4B;
+  --gradient-main: linear-gradient(135deg, #1E88C8 0%, #1AA78E 50%, #58C66B 100%);
+  --bg: #F4FAF8;
+  --card-bg: #FFFFFF;
+  --text-main: #123047;
+  --text-muted: #6B8491;
+  --border: #DCEDEA;
+  --danger: #D04444;
+  --warning: #D9822B;
+  --shadow: 0 16px 40px rgba(18, 48, 71, 0.1);
+  --soft-shadow: 0 8px 24px rgba(30, 136, 200, 0.11);
+  color-scheme: light;
+}
+
+.large-text {
+  font-size: 112%;
+}
