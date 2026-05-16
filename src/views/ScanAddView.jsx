@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import NavIcon from "../components/NavIcon";
 import AddMedicineView from "./AddMedicineView";
 
 const sampleMedicine = {
@@ -72,14 +73,30 @@ export default function ScanAddView({ onSave }) {
       </div>
       <section className="scan-panel">
         <div className="scan-hero">
-          <div className="scan-icon">▣</div>
+          <div className="scan-icon"><NavIcon id="scan" /></div>
           <h2>Reçete Etiketi Tara</h2>
           <p>{helperText}</p>
         </div>
-        <label className="upload-zone">
-          {preview ? <img src={preview} alt="Yüklenen reçete önizlemesi" /> : <span>Fotoğraf seç veya kamera ile çek</span>}
-          <input type="file" accept="image/*" capture="environment" onChange={handleFile} />
-        </label>
+        {preview ? (
+          <div className="upload-zone preview-zone">
+            <img src={preview} alt="Yüklenen reçete önizlemesi" />
+          </div>
+        ) : (
+          <div className="scan-actions">
+            <label className="scan-action-card">
+              <span className="scan-action-icon"><PhotoIcon /></span>
+              <strong>Fotoğraf Seç</strong>
+              <small>Galeriden reçete veya ilaç etiketi yükleyin.</small>
+              <input type="file" accept="image/*" onChange={handleFile} />
+            </label>
+            <label className="scan-action-card">
+              <span className="scan-action-icon"><CameraIcon /></span>
+              <strong>Kamera ile Çek</strong>
+              <small>Reçete etiketini net şekilde fotoğraflayın.</small>
+              <input type="file" accept="image/*" capture="environment" onChange={handleFile} />
+            </label>
+          </div>
+        )}
         <div className="button-row">
           <button className="ghost-button" type="button" onClick={useSample}>Örnek reçeteyi kullan</button>
           <button className="ghost-button" type="button" onClick={() => setMode("manual")}>Manuel ekle</button>
@@ -104,5 +121,25 @@ export default function ScanAddView({ onSave }) {
         </section>
       ) : null}
     </main>
+  );
+}
+
+function PhotoIcon() {
+  return (
+    <svg viewBox="0 0 28 28" aria-hidden="true">
+      <rect x="5" y="7" width="18" height="15" rx="3" />
+      <circle cx="11" cy="12" r="2" />
+      <path d="m7 20 5.5-5 3.5 3 2.5-2.5L23 20" />
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg viewBox="0 0 28 28" aria-hidden="true">
+      <path d="M9 9 11 6h6l2 3h2.5A2.5 2.5 0 0 1 24 11.5v8A2.5 2.5 0 0 1 21.5 22h-15A2.5 2.5 0 0 1 4 19.5v-8A2.5 2.5 0 0 1 6.5 9H9Z" />
+      <circle cx="14" cy="15.5" r="4" />
+      <path d="M20.5 12h.1" />
+    </svg>
   );
 }

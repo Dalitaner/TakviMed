@@ -11,9 +11,7 @@ export default function FamilyView({ profile, medications, checked, family, onFo
       </div>
 
       <section className="family-intro">
-        <div className="family-people" aria-hidden="true">
-          <span /><strong /><span />
-        </div>
+        <FamilyPlusIllustration />
         <h2>Yakınınızı Takip Edin</h2>
         <p>Aile üyelerinizle bağlanın, ilaç takibini birlikte yapın.</p>
         <ol>
@@ -56,6 +54,13 @@ export default function FamilyView({ profile, medications, checked, family, onFo
           {family.followers.length ? family.followers.map((item) => <p key={item.code}>{item.name}</p>) : <p>Henüz takipçiniz yok.</p>}
         </div>
       </section>
+      {!family.following.length && !family.followers.length ? (
+        <section className="designed-empty-state">
+          <FamilyPlusIllustration />
+          <h2>Henüz kimse eklenmedi</h2>
+          <p>Yakınınızın kodunu girerek ilaç takibini birlikte yapabilirsiniz.</p>
+        </section>
+      ) : null}
 
       <section className="section-block">
         <div className="section-heading">
@@ -70,5 +75,16 @@ export default function FamilyView({ profile, medications, checked, family, onFo
         <button className="primary-button" type="button" onClick={onNudge}>Hatırlatma gönder</button>
       </section>
     </main>
+  );
+}
+
+function FamilyPlusIllustration() {
+  return (
+    <svg className="family-plus-illustration" viewBox="0 0 120 120" aria-hidden="true">
+      <circle cx="45" cy="42" r="16" />
+      <circle cx="76" cy="47" r="13" />
+      <path d="M22 94c5-22 15-32 27-32s22 10 27 32M66 92c4-16 12-24 23-24 7 0 13 4 17 13" />
+      <path d="M92 24v22M81 35h22" />
+    </svg>
   );
 }

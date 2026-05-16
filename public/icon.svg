@@ -1,17 +1,36 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="112" fill="#F4FAF8"/>
-  <path d="M154 111C119 111 96 137 96 172V334C96 369 119 395 154 395" stroke="#1E88C8" stroke-width="18" stroke-linecap="round"/>
-  <path d="M358 111C393 111 416 137 416 172V334C416 369 393 395 358 395" stroke="#58C66B" stroke-width="18" stroke-linecap="round"/>
-  <rect x="184" y="130" width="144" height="252" rx="70" fill="url(#g)"/>
-  <path d="M184 256H328" stroke="#F4FAF8" stroke-width="18" stroke-linecap="round"/>
-  <path d="M285 161C298 166 307 176 311 192" stroke="#F4FAF8" stroke-width="14" stroke-linecap="round" opacity=".9"/>
-  <rect x="178" y="68" width="20" height="63" rx="10" fill="#1E88C8"/>
-  <rect x="314" y="68" width="20" height="63" rx="10" fill="#58C66B"/>
+  <rect width="512" height="512" rx="96" fill="#FDFBF9"/>
+  <path d="M161 101H133C94 101 67 130 67 169V348C67 387 94 416 133 416H161" stroke="url(#leftFrame)" stroke-width="12" stroke-linecap="round"/>
+  <path d="M351 101H379C418 101 445 130 445 169V348C445 387 418 416 379 416H351" stroke="url(#rightFrame)" stroke-width="12" stroke-linecap="round"/>
+  <path d="M184 101H328" stroke="url(#topFrame)" stroke-width="9" stroke-linecap="round"/>
+  <rect x="171" y="66" width="21" height="64" rx="10.5" fill="#1E88C8"/>
+  <rect x="320" y="66" width="21" height="64" rx="10.5" fill="#58C66B"/>
+
+  <rect x="170" y="134" width="172" height="257" rx="82" fill="url(#pill)"/>
+  <path d="M170 256H342" stroke="#FDFBF9" stroke-width="18" stroke-linecap="round"/>
+  <path d="M302 165C319 173 329 187 333 207" stroke="#FDFBF9" stroke-width="15" stroke-linecap="round" opacity="0.95"/>
+  <rect x="245" y="294" width="22" height="47" rx="11" fill="#1E88C8" opacity="0.9"/>
+  <path d="M212 360C229 384 283 384 300 360" stroke="#0F5F8F" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="211" cy="352" r="6" fill="#0F5F8F"/>
+  <circle cx="301" cy="352" r="6" fill="#0F5F8F"/>
+
   <defs>
-    <linearGradient id="g" x1="184" x2="335" y1="130" y2="375" gradientUnits="userSpaceOnUse">
+    <linearGradient id="leftFrame" x1="67" x2="161" y1="101" y2="416" gradientUnits="userSpaceOnUse">
       <stop stop-color="#1E88C8"/>
-      <stop offset=".54" stop-color="#1AA78E"/>
+      <stop offset="1" stop-color="#1AA78E"/>
+    </linearGradient>
+    <linearGradient id="rightFrame" x1="351" x2="445" y1="101" y2="416" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#58C66B"/>
+      <stop offset="1" stop-color="#9BE25D"/>
+    </linearGradient>
+    <linearGradient id="topFrame" x1="184" x2="328" y1="101" y2="101" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E88C8"/>
       <stop offset="1" stop-color="#58C66B"/>
+    </linearGradient>
+    <linearGradient id="pill" x1="170" x2="350" y1="134" y2="384" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1E88C8"/>
+      <stop offset="0.5" stop-color="#4CCB91"/>
+      <stop offset="1" stop-color="#9BE25D"/>
     </linearGradient>
   </defs>
 </svg>

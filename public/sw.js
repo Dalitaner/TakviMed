@@ -1,4 +1,4 @@
-const CACHE = "takvimed-v2";
+const CACHE = "takvimed-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(["/"])).catch(() => {}));

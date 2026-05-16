@@ -1,12 +1,14 @@
+import NavIcon from "./NavIcon";
+
 export default function SideMenu({ open, profile, activeView, onClose, onNavigate, onCopyCode, onLogout, onToggleDark, darkMode }) {
   const items = [
-    { id: "calendar", icon: "▦", label: "Takvim" },
-    { id: "scan", icon: "◉", label: "Tara / Ekle" },
-    { id: "medicines", icon: "●", label: "İlaçlarım" },
-    { id: "family", icon: "👥", label: "Aile Takip" },
-    { id: "summary", icon: "▥", label: "Özet" },
-    { id: "pharmacy", icon: "+", label: "Eczane" },
-    { id: "assistant", icon: "?", label: "Asistan" },
+    { id: "calendar", label: "Takvim" },
+    { id: "scan", label: "Tara / Ekle" },
+    { id: "medicines", label: "İlaçlarım" },
+    { id: "family", label: "Aile Takip" },
+    { id: "summary", label: "Özet" },
+    { id: "assistant", label: "Asistan" },
+    { id: "pharmacy", label: "Eczane" },
   ];
 
   return (
@@ -28,26 +30,26 @@ export default function SideMenu({ open, profile, activeView, onClose, onNavigat
                 onClose();
               }}
             >
-              <i>{item.icon}</i>
+              <i><NavIcon id={item.id} /></i>
               {item.label}
             </button>
           ))}
         </div>
         <div className="drawer-list muted">
           <button type="button" onClick={() => { onNavigate("settings"); onClose(); }}>
-            <i>🔐</i>
-            PIN Değiştir
+            <i><NavIcon id="settings" /></i>
+            Ayarlar
           </button>
           <button type="button" onClick={onCopyCode}>
-            <i>▣</i>
+            <i><NavIcon id="copy" /></i>
             Kodumu Kopyala
           </button>
           <button type="button" onClick={onToggleDark}>
-            <i>{darkMode ? "☀" : "☾"}</i>
+            <i><NavIcon id={darkMode ? "light" : "dark"} /></i>
             {darkMode ? "Aydınlık Mod" : "Karanlık Mod"}
           </button>
           <button className="logout" type="button" onClick={onLogout}>
-            <i>⇥</i>
+            <i><NavIcon id="logout" /></i>
             Çıkış Yap
           </button>
         </div>

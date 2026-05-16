@@ -18,10 +18,10 @@ export default function CalendarView({ medications, checked, selectedDate, onSel
             {items.map((item) => {
               const taken = !!checked[date]?.[item.key];
               return (
-                <button className={`dose-item ${taken ? "taken" : ""}`} key={item.key} type="button" onClick={() => onToggleTaken(date, item.key)}>
+                <button className={`dose-item ${taken ? "taken just-taken" : ""}`} key={item.key} type="button" onClick={() => onToggleTaken(date, item.key)}>
                   <time>{item.time}</time>
                   <span><strong>{item.med.name}</strong><small>{item.med.dose}</small></span>
-                  <i>{taken ? "✓" : ""}</i>
+                  <i><span>{taken ? "✓" : ""}</span></i>
                 </button>
               );
             })}

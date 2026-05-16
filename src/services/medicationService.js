@@ -204,6 +204,9 @@ export function syncReminderWorker(medications, checked) {
   navigator.serviceWorker.ready
     .then((registration) => {
       registration.active?.postMessage({ type: "SCHEDULE", medications, checked });
+      if (typeof Notification !== "undefined" && Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+      }
     })
     .catch(() => {});
 }

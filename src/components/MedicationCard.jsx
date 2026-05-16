@@ -5,9 +5,11 @@ export default function MedicationCard({ medication, onEdit, onDelete, onStockCh
   const expiryDays = daysUntil(medication.expiryDate);
   const stockStatus = stockDays === null ? "" : stockDays <= 3 ? "danger" : stockDays <= 7 ? "warning" : "good";
   const expiryStatus = expiryDays === null ? "" : expiryDays < 0 || expiryDays <= 3 ? "danger" : expiryDays <= 7 ? "warning" : "good";
+  const lowStock = medication.stock !== "" && medication.stock !== null && Number(medication.stock) < 5;
 
   return (
     <article className="med-card entrance-card">
+      {lowStock ? <div className="low-stock-badge">Stok az: {medication.stock} adet kaldı</div> : null}
       <div className="med-card-top">
         <div>
           <h3>{medication.name}</h3>

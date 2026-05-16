@@ -41,6 +41,28 @@ export function useMedications() {
     });
   }, []);
 
+  const archiveMedications = useCallback((ids) => {
+    setState((current) => {
+      const idSet = new Set(ids);
+      const archived = current.medications.filter((med) => idSet.has(med.id)).map((med) => ({ ...med, archivedAt: new Date().toISOString() }));
+      return {
+        ...current,
+        medications: current.medications.filter((med) => !idSet.has(med.id)),
+        archive: [...archived, ...current.archive],
+      };
+    });
+  }, []);
+
+  const removeMedications = useCallback((ids) => {
+    setState((current) => {
+      const idSet = new Set(ids);
+      return {
+        ...current,
+        medications: current.medications.filter((med) => !idSet.has(med.id)),
+      };
+    });
+  }, []);
+
   const restoreMedication = useCallback((id) => {
     setState((current) => {
       const restored = current.archive.find((med) => med.id === id);
@@ -85,6 +107,8 @@ export function useMedications() {
     addMedication,
     editMedication,
     deleteMedication,
+    archiveMedications,
+    removeMedications,
     restoreMedication,
     toggleTaken,
     updateStock,
