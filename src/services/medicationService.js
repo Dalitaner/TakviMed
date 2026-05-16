@@ -1,3 +1,6 @@
+import { collection, deleteDoc, doc, getDocs, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { db } from "./firebase";
+
 export const STORAGE_KEYS = {
   medications: "takvimed:medications",
   checked: "takvimed:checked",
@@ -44,6 +47,15 @@ function normalizeMedicine(med = {}) {
     createdAt: med.createdAt || med.addedAt || new Date().toISOString(),
     updatedAt: med.updatedAt || med.createdAt || med.addedAt || new Date().toISOString(),
   };
+}
+
+export function normalizeMedicationRecord(record = {}) {
+  return normalizeMedicine({
+    ...record,
+    createdAt: record.createdAt?.toDate?.().toISOString?.() || record.createdAt,
+    updatedAt: record.updatedAt?.toDate?.().toISOString?.() || record.updatedAt,
+    archivedAt: record.archivedAt?.toDate?.().toISOString?.() || record.archivedAt,
+  });
 }
 
 function toLegacyMedicine(med) {
@@ -209,4 +221,91 @@ export function syncReminderWorker(medications, checked) {
       }
     })
     .catch(() => {});
+}
+
+export function subscribeMedicationState(uidValue, onChange, onError) {
+  if (!uidValue) return () => {};
+  const medsRef = collection(db, "users", uidValue, "medications");
+  const checkedRef = collection(db, "users", uidValue, "takenLogs");
+  let medications = null;
+  let checked = null;
+  let archive = [];
+
+  function emit() {
+    if (!medications || !checked) return;
+    onChange({ medications, checked, archive });
+  }
+
+  const unsubscribeMeds = onSnapshot(
+    medsRef,
+    (snapshot) => {
+      const rows = snapshot.docs.map((item) => normalizeMedicationRecord({ id: item.id, ...item.data() }));
+      medications = rows.filter((med) => !med.archivedAt).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      archive = rows.filter((med) => med.archivedAt).sort((a, b) => String(b.archivedAt).localeCompare(String(a.archivedAt)));
+      emit();
+    },
+    onError,
+  );
+
+  const unsubscribeChecked = onSnapshot(
+    checkedRef,
+    (snapshot) => {
+      checked = {};
+      snapshot.docs.forEach((item) => {
+        const data = item.data();
+        const date = data.date || item.id.split("__")[0];
+        const key = data.key || item.id.split("__").slice(1).join("__");
+        if (!date || !key) return;
+        checked[date] = { ...(checked[date] || {}), [key]: Boolean(data.taken) };
+      });
+      emit();
+    },
+    onError,
+  );
+
+  return () => {
+    unsubscribeMeds();
+    unsubscribeChecked();
+  };
+}
+
+export async function seedMedicationState(uidValue, state) {
+  if (!uidValue) return;
+  const medsSnapshot = await getDocs(collection(db, "users", uidValue, "medications"));
+  if (!medsSnapshot.empty) return;
+  await Promise.all([
+    ...state.medications.map((med) => saveMedication(uidValue, med)),
+    ...state.archive.map((med) => saveMedication(uidValue, { ...med, archivedAt: med.archivedAt || new Date().toISOString() })),
+    ...checkedToRecords(state.checked).map((record) => saveTakenLog(uidValue, record)),
+  ]);
+}
+
+export async function saveMedication(uidValue, med) {
+  if (!uidValue || !med?.id) return;
+  await setDoc(doc(db, "users", uidValue, "medications", med.id), {
+    ...med,
+    createdAt: med.createdAt || serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+export async function deleteMedicationRecord(uidValue, id) {
+  if (!uidValue || !id) return;
+  await deleteDoc(doc(db, "users", uidValue, "medications", id));
+}
+
+export async function saveTakenLog(uidValue, { date, key, taken }) {
+  if (!uidValue || !date || !key) return;
+  await setDoc(doc(db, "users", uidValue, "takenLogs", `${date}__${key}`), {
+    date,
+    key,
+    taken: Boolean(taken),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+}
+
+function checkedToRecords(checked = {}) {
+  return Object.entries(checked).flatMap(([date, day]) =>
+    Object.entries(day || {}).map(([key, taken]) => ({ date, key, taken })),
+  );
 }

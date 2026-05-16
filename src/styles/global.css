@@ -1948,6 +1948,17 @@ textarea:focus {
   border-color: var(--border);
 }
 
+.dark-mode .empty-state {
+  color: #a8c0c9;
+  background: rgba(15, 37, 48, 0.72);
+  border-color: var(--border);
+}
+
+.dark-mode .chat-log .empty-state.compact {
+  color: #d7f3ff;
+  background: transparent;
+}
+
 .dark-mode .scan-action-card {
   border-color: var(--border);
   box-shadow: none;

@@ -25,8 +25,6 @@ import { notifyLowStock } from "./services/notificationService";
 import {
   loginLocalUser,
   registerLocalUser,
-  requestEmailVerification,
-  requestPasswordReset,
   resetLocalPassword,
   sanitizePin,
   validatePin,
@@ -36,7 +34,6 @@ import {
   getRateLimit,
   clearRateLimit,
   updateLocalUserPinCredential,
-  verifyLocalEmail,
 } from "./services/authService";
 
 const defaultSettings = {
@@ -54,13 +51,13 @@ const defaultSettings = {
 };
 
 export default function App() {
-  const meds = useMedications();
+  const [settings, setSettings] = useLocalStorage("takvimed:settings", defaultSettings);
+  const [profile, setProfile] = useLocalStorage("takvimed:profile", null);
+  const meds = useMedications(profile?.uid);
   const [activeView, setActiveView] = useState("calendar");
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState("");
-  const [settings, setSettings] = useLocalStorage("takvimed:settings", defaultSettings);
-  const [profile, setProfile] = useLocalStorage("takvimed:profile", null);
   const [family, setFamily] = useLocalStorage("takvimed:family", { following: [], followers: [], reminders: [] });
   const [showSplash, setShowSplash] = useState(() => typeof localStorage === "undefined" || localStorage.getItem("takvimed:splashSeen") !== "1");
   const [pinInput, setPinInput] = useState("");
@@ -89,20 +86,6 @@ export default function App() {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
   }, []);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const verifyToken = params.get("token");
-    if (window.location.pathname.includes("verify-email") && verifyToken) {
-      const data = JSON.parse(localStorage.getItem(`takvimed:verify:${verifyToken}`) || "null");
-      if (data?.username) {
-        const user = verifyLocalEmail(data.username);
-        if (profile?.name === data.username) setProfile((current) => ({ ...current, emailVerified: true }));
-        setAuthMessage(user ? "E-posta adresiniz doğrulandı." : "Doğrulama bağlantısı geçersiz.");
-      }
-      window.history.replaceState({}, "", "/");
-    }
-  }, [profile?.name, setProfile]);
 
   const locked = Boolean(profile && settings.pinEnabled && settings.pinCredential && !unlocked);
 
@@ -177,8 +160,7 @@ export default function App() {
     setSettings((current) => ({ ...current, pinEnabled: true, pinCredential: user.pinCredential, pin: "" }));
     setUnlocked(true);
     localStorage.setItem(`takvimed:user:${nextProfile.code}`, JSON.stringify(nextProfile));
-    const { verificationLink } = await requestEmailVerification({ username, email });
-    setAuthMessage(`Doğrulama e-postası gönderildi. Dev ortamı bağlantısı: ${verificationLink}`);
+    setAuthMessage("Doğrulama e-postası gönderildi. Lütfen gelen kutunuzu kontrol edin.");
     showToast("Hesap oluşturuldu. E-postanızı doğrulayın.");
   }
 
@@ -196,20 +178,13 @@ export default function App() {
   }
 
   async function forgotPassword({ username }) {
-    const email = window.prompt("PIN sıfırlama için e-posta adresinizi girin:");
-    if (!username || !email) {
-      showToast("Kullanıcı adı ve e-posta gerekli.");
+    const email = window.prompt("PIN/hesap sıfırlama bağlantısı için e-posta adresinizi girin:", username || "");
+    if (!email) {
+      showToast("E-posta gerekli.");
       return;
     }
-    const { resetLink } = await requestPasswordReset({ username, email });
-    const nextPin = sanitizePin(window.prompt(`Dev ortamında e-posta linki: ${resetLink}\nYeni 6 haneli PIN'inizi belirleyin:`) || "");
-    if (nextPin) {
-      const result = await resetLocalPassword({ username, email, pin: nextPin });
-      if (result.ok && profile?.name === username) {
-        setSettings((current) => ({ ...current, pinCredential: result.user.pinCredential, pin: "" }));
-      }
-      showToast(result.ok ? "PIN güncellendi." : result.error);
-    }
+    const result = await resetLocalPassword({ email });
+    showToast(result.ok ? "Firebase sıfırlama bağlantısı gönderildiyse gelen kutusu ve spam klasörünüzde görünecek." : result.error);
   }
 
   function copyCode() {

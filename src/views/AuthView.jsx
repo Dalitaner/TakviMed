@@ -30,8 +30,13 @@ export default function AuthView({ onRegister, onLogin, onForgotPassword, verifi
         {verificationMessage ? <div className="auth-info-box">{verificationMessage}</div> : null}
         <form className="auth-form" onSubmit={submit}>
           <label className="field-label">
-            Kullanıcı adı
-            <input value={username} onChange={(event) => setUsername(event.target.value)} required />
+            {mode === "register" ? "Kullanıcı adı" : "E-posta"}
+            <input
+              type={mode === "login" ? "email" : "text"}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              required
+            />
           </label>
           {mode === "register" ? (
             <label className="field-label">
