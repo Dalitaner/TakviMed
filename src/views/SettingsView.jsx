@@ -1,6 +1,7 @@
 import { useState } from "react";
 import PasswordField from "../components/PasswordField";
 import { createPinCredential, sanitizePin, validatePin, verifyPin } from "../services/authService";
+import { getGeminiKey, setGeminiKey, validateGeminiKey } from "../services/assistantService";
 
 const reminderOptions = [5, 10, 15, 30];
 const version = "1.0.0";
@@ -12,11 +13,36 @@ export default function SettingsView({ settings, onChange, onLogout }) {
   const [passwordForm, setPasswordForm] = useState({ old: "", next: "", confirm: "" });
   const [visiblePasswordFields, setVisiblePasswordFields] = useState({ old: false, next: false, confirm: false });
   const [passwordError, setPasswordError] = useState("");
+  const [geminiKeyInput, setGeminiKeyInput] = useState(() => getGeminiKey());
+  const [geminiKeyVisible, setGeminiKeyVisible] = useState(false);
+  const [geminiStatus, setGeminiStatus] = useState({ kind: getGeminiKey() ? "saved" : "empty", message: "" });
+  const [geminiSaving, setGeminiSaving] = useState(false);
 
   function togglePasswordField(field) {
     setVisiblePasswordFields((current) => ({ ...current, [field]: !current[field] }));
   }
   const [privacyOpen, setPrivacyOpen] = useState(false);
+
+  async function saveGeminiKey() {
+    if (geminiSaving) return;
+    setGeminiSaving(true);
+    setGeminiStatus({ kind: "checking", message: "Anahtar Gemini'de doğrulanıyor..." });
+    const result = await validateGeminiKey(geminiKeyInput);
+    if (!result.ok) {
+      setGeminiStatus({ kind: "error", message: result.error });
+      setGeminiSaving(false);
+      return;
+    }
+    setGeminiKey(geminiKeyInput);
+    setGeminiStatus({ kind: "saved", message: "Anahtar doğrulandı ve kaydedildi." });
+    setGeminiSaving(false);
+  }
+
+  function clearGeminiKey() {
+    setGeminiKey("");
+    setGeminiKeyInput("");
+    setGeminiStatus({ kind: "empty", message: "Anahtar silindi." });
+  }
 
   function update(patch) {
     onChange(patch);
@@ -52,6 +78,15 @@ export default function SettingsView({ settings, onChange, onLogout }) {
       <SettingsGroup title="TERCİHLER">
         <SettingsRow icon="contrast" title="Karanlık mod" right={<Switch checked={Boolean(settings.darkMode)} onChange={(value) => update({ darkMode: value })} />} />
         <SettingsRow icon="language" title="Dil" value="Türkçe" onClick={() => setModal("language")} />
+      </SettingsGroup>
+
+      <SettingsGroup title="ASİSTAN (GELİŞTİRİCİ)">
+        <SettingsRow
+          icon="key"
+          title="Gemini API anahtarı"
+          value={geminiStatus.kind === "saved" ? "Yerel anahtar aktif" : "Sunucu kullanıyor"}
+          onClick={() => setModal("gemini")}
+        />
       </SettingsGroup>
 
       <SettingsGroup title="VERİ & GİZLİLİK">
@@ -178,6 +213,41 @@ export default function SettingsView({ settings, onChange, onLogout }) {
             >
               PIN'i Güncelle
             </button>
+          </div>
+        </SettingsModal>
+      ) : null}
+
+      {modal === "gemini" ? (
+        <SettingsModal title="Gemini API anahtarı (geliştirici)" onClose={() => setModal(null)}>
+          <div className="time-range-form">
+            <p className="settings-modal-copy">
+              Yayında asistan, TakviMed sunucusu üzerinden çalışır ve anahtar girmenize gerek yoktur.
+              Bu alan yalnızca geliştirme sırasında, Cloud Function devreye girene kadar kendi anahtarınızla test etmek içindir.
+              Anahtar yalnızca bu cihazda saklanır. <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Anahtar al</a>
+            </p>
+            <label>
+              API anahtarı
+              <PasswordField
+                value={geminiKeyInput}
+                onChange={(event) => setGeminiKeyInput(event.target.value.trim())}
+                visible={geminiKeyVisible}
+                onToggle={() => setGeminiKeyVisible((value) => !value)}
+                placeholder="AIza..."
+              />
+            </label>
+            {geminiStatus.message ? (
+              <p className={geminiStatus.kind === "error" ? "settings-error" : "settings-modal-copy"}>
+                {geminiStatus.message}
+              </p>
+            ) : null}
+            <button className="primary-button" type="button" disabled={geminiSaving} onClick={saveGeminiKey}>
+              {geminiSaving ? "Doğrulanıyor..." : "Doğrula ve Kaydet"}
+            </button>
+            {getGeminiKey() ? (
+              <button type="button" className="settings-row danger" onClick={clearGeminiKey}>
+                Anahtarı sil
+              </button>
+            ) : null}
           </div>
         </SettingsModal>
       ) : null}

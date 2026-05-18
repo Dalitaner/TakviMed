@@ -1,69 +1,115 @@
 import { useMemo, useState } from "react";
 import NavIcon from "../components/NavIcon";
 import AddMedicineView from "./AddMedicineView";
+import { scanPrescriptionImage } from "../services/assistantService";
 
-const sampleMedicine = {
-  name: "IBURAMIN ZERO",
-  dose: "1 flakon",
-  foodTiming: "aç veya tok karnına",
-  times: ["08:00", "13:00", "20:00"],
-  duration: "reçeteye göre",
-  stock: 24,
-  initialStock: 24,
-  expiryDate: "2019-02-12",
-  reminderMinutes: 0,
-  notes: "Grip / soğuk algınlığında. Hafif uyku sersemliği yapabilir, dikkat ediniz.",
-};
+const sampleMedications = [
+  {
+    name: "Lansor",
+    dose: "30 mg, 1 kapsül",
+    foodTiming: "aç karna",
+    times: ["08:00"],
+    duration: "reçeteye göre",
+    expiryDate: "",
+    notes: "Yemekten önce, mide koruyucu",
+  },
+  {
+    name: "Parafon",
+    dose: "500 mg, 1 tablet",
+    foodTiming: "önemli değil",
+    times: ["08:00", "20:00"],
+    duration: "reçeteye göre",
+    expiryDate: "",
+    notes: "1 bardak su ile yutunuz",
+  },
+];
+
+function withDefaults(med) {
+  return {
+    name: "",
+    dose: "1 tablet",
+    foodTiming: "önemli değil",
+    times: ["08:00"],
+    duration: "reçeteye göre",
+    stock: 30,
+    initialStock: 30,
+    expiryDate: "",
+    reminderMinutes: 0,
+    notes: "",
+    ...med,
+  };
+}
 
 export default function ScanAddView({ onSave }) {
   const [mode, setMode] = useState("scan");
   const [preview, setPreview] = useState("");
-  const [parsed, setParsed] = useState(null);
+  const [medications, setMedications] = useState([]);
+  const [selectedIndex, setSelectedIndex] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [scanError, setScanError] = useState("");
 
   const helperText = useMemo(() => {
-    if (loading) return "Reçete etiketi okunuyor...";
-    if (parsed) return "Bilgileri kontrol edip ilacı ekleyebilirsiniz.";
+    if (loading) return "Reçete okunuyor, lütfen bekleyin...";
+    if (scanError) return scanError;
+    if (medications.length > 1) return `${medications.length} ilaç bulundu. Düzenlemek istediğinize dokunun veya hepsini birden ekleyin.`;
+    if (medications.length === 1) return "Bilgileri kontrol edip ilacı ekleyebilirsiniz.";
     return "Reçete etiketi veya ilaç kutusunun fotoğrafını yükleyin.";
-  }, [loading, parsed]);
+  }, [loading, medications.length, scanError]);
 
   function useSample() {
-    setParsed(sampleMedicine);
+    setMedications(sampleMedications);
+    setSelectedIndex(null);
     setPreview("");
+    setScanError("");
   }
 
   async function handleFile(event) {
     const file = event.target.files?.[0];
     if (!file) return;
+    event.target.value = "";
     setLoading(true);
-    setParsed(null);
-
-    if (typeof FileReader !== "undefined") {
-      const reader = new FileReader();
-      reader.onload = () => setPreview(String(reader.result || ""));
-      reader.readAsDataURL(file);
-    }
+    setMedications([]);
+    setSelectedIndex(null);
+    setScanError("");
 
     try {
-      const body = new FormData();
-      body.append("image", file);
-      const response = await fetch("/api/scan-prescription", { method: "POST", body });
-      if (response.ok) {
-        const data = await response.json();
-        setParsed({ ...sampleMedicine, ...data });
-        return;
-      }
-    } catch {
-      // Development fallback below keeps the UI usable until OCR backend exists.
+      const { medications: meds, preview: previewUrl } = await scanPrescriptionImage(file);
+      setPreview(previewUrl);
+      setMedications(meds);
+      if (meds.length === 1) setSelectedIndex(0);
+    } catch (error) {
+      setScanError(error.message || "Reçete okunamadı.");
+      setPreview("");
     } finally {
       setLoading(false);
     }
-    setParsed(sampleMedicine);
+  }
+
+  function saveSelected(payload) {
+    onSave(payload);
+    setMedications((current) => current.filter((_, i) => i !== selectedIndex));
+    setSelectedIndex(null);
+  }
+
+  function addAll() {
+    medications.forEach((med) => onSave(withDefaults(med)));
+    setMedications([]);
+    setSelectedIndex(null);
+    setPreview("");
+  }
+
+  function clearAll() {
+    setMedications([]);
+    setSelectedIndex(null);
+    setPreview("");
+    setScanError("");
   }
 
   if (mode === "manual") {
     return <AddMedicineView onSave={onSave} onCancel={() => setMode("scan")} />;
   }
+
+  const showForm = selectedIndex !== null && medications[selectedIndex];
 
   return (
     <main className="view-shell">
@@ -103,20 +149,46 @@ export default function ScanAddView({ onSave }) {
         </div>
       </section>
 
-      {parsed ? (
+      {medications.length > 1 && !showForm ? (
         <section className="section-block parsed-card">
           <div className="section-heading">
-            <h2>Okunan bilgiler</h2>
+            <h2>Bulunan ilaçlar ({medications.length})</h2>
+            <span>Tek tek düzenle veya hepsini ekle</span>
+          </div>
+          <ul className="scan-result-list">
+            {medications.map((med, index) => (
+              <li key={`${med.name}-${index}`}>
+                <button type="button" className="scan-result-item" onClick={() => setSelectedIndex(index)}>
+                  <div className="scan-result-main">
+                    <strong>{med.name || "İsim okunamadı"}</strong>
+                    <span>{med.dose || "Doz belirsiz"}</span>
+                  </div>
+                  <div className="scan-result-meta">
+                    {med.times?.length ? <span>{med.times.join(" · ")}</span> : null}
+                    {med.foodTiming && med.foodTiming !== "önemli değil" ? <span>{med.foodTiming}</span> : null}
+                  </div>
+                  <span className="chevron">›</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="button-row">
+            <button className="primary-button" type="button" onClick={addAll}>Hepsini ekle</button>
+            <button className="ghost-button" type="button" onClick={clearAll}>Vazgeç</button>
+          </div>
+        </section>
+      ) : null}
+
+      {showForm ? (
+        <section className="section-block parsed-card">
+          <div className="section-heading">
+            <h2>{medications.length > 1 ? `İlaç ${selectedIndex + 1}/${medications.length}` : "Okunan bilgiler"}</h2>
             <span>Kontrol gerekli</span>
           </div>
           <AddMedicineView
-            initialMedication={parsed}
-            onSave={(payload) => {
-              onSave(payload);
-              setParsed(null);
-              setPreview("");
-            }}
-            onCancel={() => setParsed(null)}
+            initialMedication={withDefaults(medications[selectedIndex])}
+            onSave={saveSelected}
+            onCancel={() => (medications.length > 1 ? setSelectedIndex(null) : clearAll())}
           />
         </section>
       ) : null}
