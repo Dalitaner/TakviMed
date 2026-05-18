@@ -1,3 +1,5 @@
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Capacitor } from "@capacitor/core";
 import { useMemo, useState } from "react";
 import NavIcon from "../components/NavIcon";
 import AddMedicineView from "./AddMedicineView";
@@ -15,11 +17,25 @@ const sampleMedicine = {
   notes: "Grip / soğuk algınlığında. Hafif uyku sersemliği yapabilir, dikkat ediniz.",
 };
 
+function dataUrlToBlob(dataUrl) {
+  const [meta, base64] = dataUrl.split(",");
+  const mimeMatch = /data:([^;]+);/.exec(meta);
+  const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+  const binary = atob(base64);
+  const length = binary.length;
+  const bytes = new Uint8Array(length);
+  for (let i = 0; i < length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 export default function ScanAddView({ onSave }) {
   const [mode, setMode] = useState("scan");
   const [preview, setPreview] = useState("");
   const [parsed, setParsed] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const isNative = Capacitor.isNativePlatform();
 
   const helperText = useMemo(() => {
     if (loading) return "Reçete etiketi okunuyor...";
@@ -30,23 +46,17 @@ export default function ScanAddView({ onSave }) {
   function useSample() {
     setParsed(sampleMedicine);
     setPreview("");
+    setError("");
   }
 
-  async function handleFile(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  async function uploadImage(blob, dataUrl) {
+    setPreview(dataUrl);
     setLoading(true);
     setParsed(null);
-
-    if (typeof FileReader !== "undefined") {
-      const reader = new FileReader();
-      reader.onload = () => setPreview(String(reader.result || ""));
-      reader.readAsDataURL(file);
-    }
-
+    setError("");
     try {
       const body = new FormData();
-      body.append("image", file);
+      body.append("image", blob, "prescription.jpg");
       const response = await fetch("/api/scan-prescription", { method: "POST", body });
       if (response.ok) {
         const data = await response.json();
@@ -54,11 +64,70 @@ export default function ScanAddView({ onSave }) {
         return;
       }
     } catch {
-      // Development fallback below keeps the UI usable until OCR backend exists.
+      // Backend yoksa sample fallback
     } finally {
       setLoading(false);
     }
     setParsed(sampleMedicine);
+    setError("OCR servisi bağlı değil; örnek bilgiler dolduruldu. Lütfen kontrol edin.");
+  }
+
+  async function handleFileInput(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (typeof FileReader === "undefined") return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      if (dataUrl) uploadImage(file, dataUrl);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function pickFromCamera() {
+    if (!isNative) return;
+    try {
+      const photo = await Camera.getPhoto({
+        source: CameraSource.Camera,
+        resultType: CameraResultType.DataUrl,
+        quality: 85,
+        allowEditing: false,
+        promptLabelHeader: "Reçete",
+        promptLabelCancel: "Vazgeç",
+      });
+      const dataUrl = photo.dataUrl;
+      if (!dataUrl) return;
+      const blob = dataUrlToBlob(dataUrl);
+      await uploadImage(blob, dataUrl);
+    } catch (err) {
+      if (!String(err?.message || "").toLowerCase().includes("cancel")) {
+        console.error("[ScanAddView.camera]", err);
+        setError("Kamera açılamadı. İzin verdiğinizden emin olun.");
+      }
+    }
+  }
+
+  async function pickFromGallery() {
+    if (!isNative) return;
+    try {
+      const photo = await Camera.getPhoto({
+        source: CameraSource.Photos,
+        resultType: CameraResultType.DataUrl,
+        quality: 85,
+        allowEditing: false,
+        promptLabelHeader: "Reçete",
+        promptLabelCancel: "Vazgeç",
+      });
+      const dataUrl = photo.dataUrl;
+      if (!dataUrl) return;
+      const blob = dataUrlToBlob(dataUrl);
+      await uploadImage(blob, dataUrl);
+    } catch (err) {
+      if (!String(err?.message || "").toLowerCase().includes("cancel")) {
+        console.error("[ScanAddView.gallery]", err);
+        setError("Galeri açılamadı. İzin verdiğinizden emin olun.");
+      }
+    }
   }
 
   if (mode === "manual") {
@@ -76,6 +145,7 @@ export default function ScanAddView({ onSave }) {
           <div className="scan-icon"><NavIcon id="scan" /></div>
           <h2>Reçete Etiketi Tara</h2>
           <p>{helperText}</p>
+          {error ? <p className="scan-error">{error}</p> : null}
         </div>
         {preview ? (
           <div className="upload-zone preview-zone">
@@ -83,18 +153,34 @@ export default function ScanAddView({ onSave }) {
           </div>
         ) : (
           <div className="scan-actions">
-            <label className="scan-action-card">
-              <span className="scan-action-icon"><PhotoIcon /></span>
-              <strong>Fotoğraf Seç</strong>
-              <small>Galeriden reçete veya ilaç etiketi yükleyin.</small>
-              <input type="file" accept="image/*" onChange={handleFile} />
-            </label>
-            <label className="scan-action-card">
-              <span className="scan-action-icon"><CameraIcon /></span>
-              <strong>Kamera ile Çek</strong>
-              <small>Reçete etiketini net şekilde fotoğraflayın.</small>
-              <input type="file" accept="image/*" capture="environment" onChange={handleFile} />
-            </label>
+            {isNative ? (
+              <button type="button" className="scan-action-card scan-action-button" onClick={pickFromGallery}>
+                <span className="scan-action-icon"><PhotoIcon /></span>
+                <strong>Fotoğraf Seç</strong>
+                <small>Galeriden reçete veya ilaç etiketi yükleyin.</small>
+              </button>
+            ) : (
+              <label className="scan-action-card">
+                <span className="scan-action-icon"><PhotoIcon /></span>
+                <strong>Fotoğraf Seç</strong>
+                <small>Galeriden reçete veya ilaç etiketi yükleyin.</small>
+                <input type="file" accept="image/*" onChange={handleFileInput} />
+              </label>
+            )}
+            {isNative ? (
+              <button type="button" className="scan-action-card scan-action-button" onClick={pickFromCamera}>
+                <span className="scan-action-icon"><CameraIcon /></span>
+                <strong>Kamera ile Çek</strong>
+                <small>Reçete etiketini net şekilde fotoğraflayın.</small>
+              </button>
+            ) : (
+              <label className="scan-action-card">
+                <span className="scan-action-icon"><CameraIcon /></span>
+                <strong>Kamera ile Çek</strong>
+                <small>Reçete etiketini net şekilde fotoğraflayın.</small>
+                <input type="file" accept="image/*" capture="environment" onChange={handleFileInput} />
+              </label>
+            )}
           </div>
         )}
         <div className="button-row">
@@ -115,8 +201,12 @@ export default function ScanAddView({ onSave }) {
               onSave(payload);
               setParsed(null);
               setPreview("");
+              setError("");
             }}
-            onCancel={() => setParsed(null)}
+            onCancel={() => {
+              setParsed(null);
+              setError("");
+            }}
           />
         </section>
       ) : null}

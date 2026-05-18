@@ -8,6 +8,7 @@ import PasswordField from "./components/PasswordField";
 import SideMenu from "./components/SideMenu";
 import SplashScreen from "./components/SplashScreen";
 import Toast from "./components/Toast";
+import { useFamily } from "./hooks/useFamily";
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { useMedications } from "./hooks/useMedications";
 import AddMedicineView from "./views/AddMedicineView";
@@ -21,7 +22,14 @@ import SettingsView from "./views/SettingsView";
 import SummaryView from "./views/SummaryView";
 import TodayView from "./views/TodayView";
 import { todayKey } from "./services/medicationService";
-import { notifyLowStock } from "./services/notificationService";
+import {
+  ensureNotificationPermissions,
+  notifyLowStock,
+  registerMedicationNotificationActions,
+  snoozeMedicationReminder,
+  subscribeMedicationNotificationActions,
+  syncMedicationReminders,
+} from "./services/notificationService";
 import {
   loginLocalUser,
   registerLocalUser,
@@ -58,7 +66,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState("");
-  const [family, setFamily] = useLocalStorage("takvimed:family", { following: [], followers: [], reminders: [] });
+  const family = useFamily({ myUid: profile?.uid, myName: profile?.name });
   const [showSplash, setShowSplash] = useState(() => typeof localStorage === "undefined" || localStorage.getItem("takvimed:splashSeen") !== "1");
   const [pinInput, setPinInput] = useState("");
   const [showLockPin, setShowLockPin] = useState(false);
@@ -86,6 +94,34 @@ export default function App() {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    ensureNotificationPermissions().catch(() => {});
+    registerMedicationNotificationActions().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    syncMedicationReminders(meds.medications, {
+      reminderNotifications: settings.reminderNotifications,
+      reminderLeadMinutes: settings.reminderLeadMinutes,
+    }).catch(() => {});
+  }, [meds.medications, settings.reminderNotifications, settings.reminderLeadMinutes]);
+
+  useEffect(() => {
+    const cleanup = subscribeMedicationNotificationActions(({ actionId, medicationId, scheduledTime }) => {
+      if (!medicationId || !scheduledTime) return;
+      const medication = meds.medications.find((m) => m.id === medicationId);
+      if (!medication) return;
+      if (actionId === "TAKE") {
+        meds.toggleTaken(todayKey(), `${medicationId}_${scheduledTime}`);
+        showToast(`${medication.name} alındı olarak işaretlendi.`);
+      } else if (actionId === "SNOOZE") {
+        snoozeMedicationReminder({ medication, scheduledTime, minutes: 5 }).catch(() => {});
+        showToast(`${medication.name} 5 dakika ertelendi.`);
+      }
+    });
+    return cleanup;
+  }, [meds.medications, meds.toggleTaken]);
 
   const locked = Boolean(profile && settings.pinEnabled && settings.pinCredential && !unlocked);
 
@@ -155,13 +191,13 @@ export default function App() {
       return;
     }
     const user = result.user;
-    const nextProfile = { name: user.username, email: user.email, emailVerified: user.emailVerified, code, createdAt: user.createdAt };
+    const nextProfile = { uid: user.uid, name: user.username, email: user.email, emailVerified: user.emailVerified, code, createdAt: user.createdAt };
     setProfile(nextProfile);
     setSettings((current) => ({ ...current, pinEnabled: true, pinCredential: user.pinCredential, pin: "" }));
     setUnlocked(true);
     localStorage.setItem(`takvimed:user:${nextProfile.code}`, JSON.stringify(nextProfile));
-    setAuthMessage("Doğrulama e-postası gönderildi. Lütfen gelen kutunuzu kontrol edin.");
-    showToast("Hesap oluşturuldu. E-postanızı doğrulayın.");
+    setAuthMessage("Doğrulama e-postası gönderildi. Gelen kutunuzu kontrol edin — gelmediyse Spam / Önemsiz / Promosyon klasörlerine de bakın ve göndereni güvenilir olarak işaretleyin.");
+    showToast("Hesap oluşturuldu. E-postanızı doğrulayın (spam klasörüne de bakın).");
   }
 
   async function login({ username, pin }) {
@@ -171,7 +207,7 @@ export default function App() {
       return;
     }
     const user = result.user;
-    setProfile({ name: user.username, email: user.email, emailVerified: user.emailVerified, code: user.code, createdAt: user.createdAt });
+    setProfile({ uid: user.uid, name: user.username, email: user.email, emailVerified: user.emailVerified, code: user.code, createdAt: user.createdAt });
     setSettings((current) => ({ ...current, pinEnabled: true, pinCredential: user.pinCredential, pin: "" }));
     setUnlocked(true);
     showToast("Giriş yapıldı.");
@@ -198,17 +234,36 @@ export default function App() {
     setSettings((current) => ({ ...current, ...patch }));
   }
 
-  function followFamily(codeValue) {
-    const code = String(codeValue || "").trim().toUpperCase();
-    if (!code || code === profile.code) {
-      showToast("Geçerli bir yakın kodu girin.");
+  async function followFamily(codeValue) {
+    const result = await family.follow(codeValue);
+    if (!result?.ok) {
+      showToast(result?.error || "Takip eklenemedi.");
       return;
     }
-    setFamily((current) => {
-      if (current.following.some((item) => item.code === code)) return current;
-      return { ...current, following: [...current.following, { code, name: `Yakın ${code}`, addedAt: new Date().toISOString() }] };
-    });
-    showToast("Takip isteği yerel olarak eklendi.");
+    showToast(`${result.followedName} takip ediliyor.`);
+  }
+
+  async function unfollowFamilyMember(theirUid, theirName) {
+    await family.unfollow(theirUid);
+    showToast(`${theirName || "Yakın"} takipten çıkarıldı.`);
+  }
+
+  async function removeFamilyFollower(followerUid, followerName) {
+    await family.removeFollower(followerUid);
+    showToast(`${followerName || "Takipçi"} kaldırıldı.`);
+  }
+
+  async function sendFamilyReminder({ targetUid, targetName, message }) {
+    const result = await family.sendReminder({ targetUid, message });
+    if (!result?.ok) {
+      showToast(result?.error || "Hatırlatma gönderilemedi.");
+      return;
+    }
+    showToast(`${targetName || "Yakın"} hatırlatıldı.`);
+  }
+
+  async function dismissFamilyReminder(reminderId) {
+    await family.dismissReminder(reminderId);
   }
 
   function handleToggleTaken(date, key) {
@@ -306,6 +361,20 @@ export default function App() {
           >
             Aç
           </button>
+          <button
+            className="ghost-link"
+            type="button"
+            onClick={() => {
+              if (!window.confirm("PIN'i sıfırlamak için çıkış yapılacak. İlaçlarınız ve aile bağlantılarınız Firestore'da güvende. Devam edilsin mi?")) return;
+              setProfile(null);
+              setSettings((current) => ({ ...current, pinEnabled: false, pinCredential: null, pin: "" }));
+              setPinInput("");
+              setUnlocked(true);
+              clearRateLimit("app-lock");
+            }}
+          >
+            PIN'imi unuttum / hesap değiştir
+          </button>
         </section>
         <Toast toast={toast} />
       </div>
@@ -385,8 +454,11 @@ export default function App() {
             checked={meds.checked}
             family={family}
             onFollow={followFamily}
+            onUnfollow={unfollowFamilyMember}
+            onRemoveFollower={removeFamilyFollower}
+            onSendReminder={sendFamilyReminder}
+            onDismissReminder={dismissFamilyReminder}
             onCopyCode={copyCode}
-            onNudge={() => showToast("Hatırlatma taslağı oluşturuldu. Backend bağlanınca gönderilecek.")}
           />
         ) : null}
         {activeView === "pharmacy" ? <PharmacyView /> : null}

@@ -1305,6 +1305,21 @@ textarea:focus {
   margin: 0 auto;
 }
 
+.pin-card .ghost-link {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-top: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+.pin-card .ghost-link:hover {
+  color: var(--primary-dark);
+}
+
 .auth-card p {
   color: var(--text-muted);
   line-height: 1.45;
@@ -1575,6 +1590,19 @@ textarea:focus {
   display: none;
 }
 
+button.scan-action-card,
+.scan-action-button {
+  font-family: inherit;
+  font-size: inherit;
+  width: 100%;
+}
+
+.scan-error {
+  color: var(--danger, #c0392b);
+  font-size: 0.82rem;
+  margin-top: 6px;
+}
+
 .scan-action-card strong,
 .scan-action-card small {
   margin: 0;
@@ -1759,6 +1787,74 @@ textarea:focus {
 .family-stats {
   display: grid;
   gap: 8px;
+}
+
+.family-reminder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f7fcfb;
+  margin-top: 8px;
+}
+
+.family-reminder > div {
+  display: grid;
+  gap: 2px;
+}
+
+.family-reminder strong {
+  color: var(--text-main);
+  font-size: 0.9rem;
+}
+
+.family-reminder span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.family-person.expanded {
+  background: #f7fcfb;
+  border-radius: 14px;
+  padding: 10px;
+}
+
+.family-person-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 6px 4px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.family-person-row small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.family-person-detail {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.family-person-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.family-person-actions .primary-button,
+.family-person-actions .ghost-button {
+  flex: 1;
+  min-width: 140px;
 }
 
 .family-stats {

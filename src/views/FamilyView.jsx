@@ -1,7 +1,31 @@
+import { useRef, useState } from "react";
+import { useFollowedMemberData } from "../hooks/useFamily";
 import { summaryFor } from "../services/medicationService";
 
-export default function FamilyView({ profile, medications, checked, family, onFollow, onCopyCode, onNudge }) {
-  const summary = summaryFor(medications, checked, 7);
+export default function FamilyView({
+  profile,
+  medications,
+  checked,
+  family,
+  onFollow,
+  onUnfollow,
+  onRemoveFollower,
+  onSendReminder,
+  onDismissReminder,
+  onCopyCode,
+}) {
+  const inputRef = useRef(null);
+  const [selectedFollowingUid, setSelectedFollowingUid] = useState(null);
+
+  const ownSummary = summaryFor(medications, checked, 7);
+
+  function handleFollow() {
+    const value = inputRef.current?.value;
+    if (!value) return;
+    onFollow(value).then(() => {
+      if (inputRef.current) inputRef.current.value = "";
+    });
+  }
 
   return (
     <main className="view-shell family-view">
@@ -20,8 +44,8 @@ export default function FamilyView({ profile, medications, checked, family, onFo
           <li>İlaç kullanım durumunu anlık olarak görün</li>
         </ol>
         <div className="follow-form">
-          <input id="family-code" placeholder="Örn. AB1C2D" maxLength="8" />
-          <button type="button" onClick={() => onFollow(document.getElementById("family-code")?.value)}>Takip Et →</button>
+          <input ref={inputRef} placeholder="Örn. AB1C2D" maxLength="8" />
+          <button type="button" onClick={handleFollow}>Takip Et →</button>
         </div>
       </section>
 
@@ -31,29 +55,52 @@ export default function FamilyView({ profile, medications, checked, family, onFo
           <span>Sizin kodunuz</span>
         </div>
         <div className="family-code">{profile.code}</div>
-        <p>Bu kodu aile üyenize gönderin, size takip isteği atsın.</p>
+        <p>Bu kodu aile üyenize gönderin, kodunuzla sizi takip etsin.</p>
         <button className="ghost-button" type="button" onClick={onCopyCode}>Kodu Kopyala</button>
+      </section>
+
+      <section className="family-card">
+        <strong>Gelen Hatırlatmalar <small>{family.reminders.length}</small></strong>
+        {family.reminders.length ? (
+          family.reminders.map((reminder) => (
+            <div className="family-reminder" key={reminder.id}>
+              <div>
+                <strong>{reminder.fromName}</strong>
+                <span>{reminder.message}</span>
+              </div>
+              <button className="ghost-button" type="button" onClick={() => onDismissReminder(reminder.id)}>Kapat</button>
+            </div>
+          ))
+        ) : (
+          <p>Hatırlatma yok</p>
+        )}
       </section>
 
       <section className="family-grid">
         <div className="family-card">
-          <strong>Gelen Hatırlatmalar</strong>
-          <p>Hatırlatma yok</p>
-        </div>
-        <div className="family-card">
           <strong>Takip Ettiklerim <small>{family.following.length}</small></strong>
           {family.following.length ? family.following.map((item) => (
-            <div className="family-person" key={item.code}>
-              <span>{item.name}</span>
-              <small>{item.code}</small>
-            </div>
+            <FollowingItem
+              key={item.uid}
+              item={item}
+              selected={selectedFollowingUid === item.uid}
+              onSelect={() => setSelectedFollowingUid((current) => current === item.uid ? null : item.uid)}
+              onUnfollow={() => onUnfollow(item.uid, item.followedName)}
+              onRemind={(message) => onSendReminder({ targetUid: item.uid, targetName: item.followedName, message })}
+            />
           )) : <p>Henüz kimseyi takip etmiyorsunuz.</p>}
         </div>
         <div className="family-card">
           <strong>Beni Takip Edenler <small>{family.followers.length}</small></strong>
-          {family.followers.length ? family.followers.map((item) => <p key={item.code}>{item.name}</p>) : <p>Henüz takipçiniz yok.</p>}
+          {family.followers.length ? family.followers.map((item) => (
+            <div className="family-person" key={item.uid}>
+              <span>{item.followerName}</span>
+              <button className="ghost-button" type="button" onClick={() => onRemoveFollower(item.uid, item.followerName)}>Kaldır</button>
+            </div>
+          )) : <p>Henüz takipçiniz yok.</p>}
         </div>
       </section>
+
       {!family.following.length && !family.followers.length ? (
         <section className="designed-empty-state">
           <FamilyPlusIllustration />
@@ -65,16 +112,43 @@ export default function FamilyView({ profile, medications, checked, family, onFo
       <section className="section-block">
         <div className="section-heading">
           <h2>{profile.name} profili</h2>
-          <span>{summary.rate}% uyum</span>
+          <span>{ownSummary.rate}% uyum</span>
         </div>
         <div className="family-stats">
           <div><strong>{medications.length}</strong><span>Aktif ilaç</span></div>
-          <div><strong>{summary.takenDose}</strong><span>7 günde alınan</span></div>
-          <div><strong>{summary.missedDose}</strong><span>Atlanan</span></div>
+          <div><strong>{ownSummary.takenDose}</strong><span>7 günde alınan</span></div>
+          <div><strong>{ownSummary.missedDose}</strong><span>Atlanan</span></div>
         </div>
-        <button className="primary-button" type="button" onClick={onNudge}>Hatırlatma gönder</button>
       </section>
     </main>
+  );
+}
+
+function FollowingItem({ item, selected, onSelect, onUnfollow, onRemind }) {
+  const { medications, checked } = useFollowedMemberData(selected ? item.uid : null);
+  const summary = selected ? summaryFor(medications, checked, 7) : null;
+  const defaultMessage = `İlacınızı almayı unutmayın 💊`;
+
+  return (
+    <div className={`family-person ${selected ? "expanded" : ""}`}>
+      <button className="family-person-row" type="button" onClick={onSelect}>
+        <span>{item.followedName}</span>
+        <small>{item.followedCode}</small>
+      </button>
+      {selected ? (
+        <div className="family-person-detail">
+          <div className="family-stats">
+            <div><strong>{medications.length}</strong><span>Aktif ilaç</span></div>
+            <div><strong>{summary?.takenDose ?? 0}</strong><span>7 günde alınan</span></div>
+            <div><strong>{summary?.missedDose ?? 0}</strong><span>Atlanan</span></div>
+          </div>
+          <div className="family-person-actions">
+            <button className="primary-button" type="button" onClick={() => onRemind(defaultMessage)}>Hatırlatma gönder</button>
+            <button className="ghost-button" type="button" onClick={onUnfollow}>Takipten çık</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -1,0 +1,69 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isFollowerOf(uid) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(uid)/followers/$(request.auth.uid));
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isFollowerOf(uid);
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid);
+      allow delete: if false;
+
+      match /medications/{medId} {
+        allow read: if isOwner(uid) || isFollowerOf(uid);
+        allow write: if isOwner(uid);
+      }
+
+      match /takenLogs/{logId} {
+        allow read: if isOwner(uid) || isFollowerOf(uid);
+        allow write: if isOwner(uid);
+      }
+
+      match /followers/{followerUid} {
+        allow read: if isOwner(uid) || isOwner(followerUid);
+        allow create, update: if isSignedIn()
+          && request.auth.uid == followerUid
+          && request.resource.data.followerUid == followerUid;
+        allow delete: if isOwner(uid) || isOwner(followerUid);
+      }
+
+      match /following/{followedUid} {
+        allow read, write: if isOwner(uid);
+      }
+
+      match /reminders/{reminderId} {
+        allow read: if isOwner(uid);
+        allow create: if isSignedIn()
+          && request.resource.data.fromUid == request.auth.uid
+          && isFollowerOf(uid);
+        allow update: if isOwner(uid);
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    match /familyCodes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
