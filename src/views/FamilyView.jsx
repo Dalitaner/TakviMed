@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFollowedMemberData } from "../hooks/useFamily";
-import { summaryFor } from "../services/medicationService";
+import { getDayItems, summaryFor, todayKey } from "../services/medicationService";
 
 export default function FamilyView({
   profile,
@@ -16,6 +16,12 @@ export default function FamilyView({
 }) {
   const inputRef = useRef(null);
   const [selectedFollowingUid, setSelectedFollowingUid] = useState(null);
+
+  useEffect(() => {
+    if (family.following.length === 1 && selectedFollowingUid === null) {
+      setSelectedFollowingUid(family.following[0].uid);
+    }
+  }, [family.following, selectedFollowingUid]);
 
   const ownSummary = summaryFor(medications, checked, 7);
 
@@ -127,6 +133,9 @@ export default function FamilyView({
 function FollowingItem({ item, selected, onSelect, onUnfollow, onRemind }) {
   const { medications, checked } = useFollowedMemberData(selected ? item.uid : null);
   const summary = selected ? summaryFor(medications, checked, 7) : null;
+  const today = todayKey();
+  const todayItems = selected ? getDayItems(medications, today) : [];
+  const todayChecked = checked?.[today] || {};
   const defaultMessage = `İlacınızı almayı unutmayın 💊`;
 
   return (
@@ -134,6 +143,7 @@ function FollowingItem({ item, selected, onSelect, onUnfollow, onRemind }) {
       <button className="family-person-row" type="button" onClick={onSelect}>
         <span>{item.followedName}</span>
         <small>{item.followedCode}</small>
+        <span className={`family-person-chevron ${selected ? "open" : ""}`}>▾</span>
       </button>
       {selected ? (
         <div className="family-person-detail">
@@ -142,6 +152,46 @@ function FollowingItem({ item, selected, onSelect, onUnfollow, onRemind }) {
             <div><strong>{summary?.takenDose ?? 0}</strong><span>7 günde alınan</span></div>
             <div><strong>{summary?.missedDose ?? 0}</strong><span>Atlanan</span></div>
           </div>
+
+          <div className="family-today-section">
+            <strong>Bugün ({today})</strong>
+            {todayItems.length === 0 ? (
+              <p className="family-empty-note">Bugün için planlanmış ilaç yok.</p>
+            ) : (
+              <ul className="family-today-list">
+                {todayItems.map(({ med, time, key }) => {
+                  const taken = Boolean(todayChecked[key]);
+                  return (
+                    <li key={key} className={`family-today-row ${taken ? "taken" : "pending"}`}>
+                      <span className="family-today-time">{time}</span>
+                      <span className="family-today-name">
+                        <strong>{med.name}</strong>
+                        <small>{med.dose}{med.foodTiming && med.foodTiming !== "önemli değil" ? ` · ${med.foodTiming}` : ""}</small>
+                      </span>
+                      <span className={`family-today-status ${taken ? "taken" : "pending"}`}>
+                        {taken ? "✓ alındı" : "bekliyor"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {medications.length > 0 ? (
+            <div className="family-today-section">
+              <strong>Tüm ilaçlar</strong>
+              <ul className="family-medlist">
+                {medications.map((med) => (
+                  <li key={med.id}>
+                    <strong>{med.name}</strong>
+                    <small>{med.dose} · {med.times?.join(", ")}{med.foodTiming && med.foodTiming !== "önemli değil" ? ` · ${med.foodTiming}` : ""}</small>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <div className="family-person-actions">
             <button className="primary-button" type="button" onClick={() => onRemind(defaultMessage)}>Hatırlatma gönder</button>
             <button className="ghost-button" type="button" onClick={onUnfollow}>Takipten çık</button>

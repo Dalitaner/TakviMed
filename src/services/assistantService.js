@@ -1,79 +1,173 @@
-export const ASSISTANT_SYSTEM_PROMPT = `Sen TakviMed adlı bir ilaç ve takviye hatırlatma uygulamasının sağlık asistanısın.
+import { httpsCallable } from "firebase/functions";
+import { auth, functions } from "./firebase";
 
-KAPSAM (yalnızca şunlara cevap ver):
-- Kullanıcının kayıtlı ilaçları, etken maddeleri ya da takviyeleri hakkında genel bilgi (ne için kullanılır, kullanım zamanı, yaygın yan etkiler, depolama)
-- Aç/tok kullanım, sıklık, etiket bilgisi
-- İlaç-ilaç veya ilaç-takviye etkileşimleri hakkında genel uyarı ve eczacıya yönlendirme
-- TakviMed uygulamasının nasıl kullanılacağı (hatırlatma, aile takip, eczane bul gibi özellikler)
-- Sağlık personeline başvurmayı gerektiren belirti uyarıları
+const GEMINI_KEY_STORAGE = "takvimed:geminiKey";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
-KAPSAM DIŞI — REDDET:
-İlaç ve sağlık konuları dışındaki her şey (matematik, kod, hava durumu, genel sohbet, oyun, kişisel tavsiye, finans, vs.) için kibarca şu cevabı ver ve KONUYA GİRME:
-"Üzgünüm, yalnızca TakviMed uygulamanızdaki ilaç ve sağlık konularına yardımcı olabiliyorum. Bu konuda yardımcı olamam."
+const chatCallable = httpsCallable(functions, "chatWithGemini");
+const scanCallable = httpsCallable(functions, "scanPrescription");
 
-KESİNLİKLE YAPMA (App Store ve etik kurallar):
-- Tanı (teşhis) koymak — "X hastalığınız var", "Y nedenle olabilir" gibi cümleler kurma. Bunun yerine "Bu belirtinin nedeni için doktorunuza danışmanız gerekir" de.
-- Doz önermek, doz değişikliği önermek, ilaç başlatma veya durdurma tavsiyesi vermek
-- Reçete yazmak veya hangi ilacı kullanması gerektiğini söylemek
-- Belirli bir hastalık için "şunu kullanın" tarzı kesin tavsiye vermek
-- Acil durumlarda kendi kendine müdahale önermek — daima "Acilse 112'yi arayın veya acile başvurun" de
-
-HER YANITTA:
-- Türkçe, sade, kısa ve net dilde cevap ver (3-5 cümleyi geç me)
-- Sağlık personeline danışma yönergesini ekle ("doktor/eczacınıza danışın")
-- Emin değilsen veya bilgin yoksa açıkça "Bu konuda kesin bilgi veremem, eczacınıza danışın" de — uydurma
-- Yanıtın sonunda kısa bir disclaimer ekle: "Bu bilgi yalnızca bilgilendirme amaçlıdır, tanı veya tedavi yerine geçmez."`;
-
-export async function sendAssistantMessage({ message, medicineName, userContext }) {
-  const payload = {
-    message,
-    medicineName: medicineName || "",
-    userContext: userContext || {},
-    systemInstruction: ASSISTANT_SYSTEM_PROMPT,
-  };
-
-  try {
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (response.ok) return response.json();
-    if (response.status !== 404) throw new Error("Asistan şu anda yanıt veremiyor.");
-  } catch (error) {
-    if (!["Failed to fetch", "Asistan şu anda yanıt veremiyor."].includes(error.message)) throw error;
+export async function scanPrescriptionImage(file) {
+  if (!auth.currentUser) {
+    throw new Error("Reçete taramak için giriş yapın.");
+  }
+  if (!file) throw new Error("Görsel seçilmedi.");
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("Görsel 5 MB sınırını aşıyor. Daha küçük bir fotoğraf çekin veya seçin.");
   }
 
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Görsel okunamadı."));
+    reader.readAsDataURL(file);
+  });
+  const base64 = dataUrl.split(",")[1] || "";
+  const mimeType = file.type || "image/jpeg";
+
+  try {
+    const result = await scanCallable({ imageBase64: base64, mimeType });
+    const medications = Array.isArray(result?.data?.medications) ? result.data.medications : [];
+    return { medications, preview: dataUrl };
+  } catch (error) {
+    const code = error?.code || "";
+    if (code === "functions/unauthenticated") throw new Error("Reçete taramak için giriş yapın.");
+    if (code === "functions/resource-exhausted") throw new Error(error.message);
+    if (code === "functions/not-found") throw new Error(error.message || "Görselde ilaç adı tespit edilemedi.");
+    if (code === "functions/invalid-argument") throw new Error(error.message);
+    throw new Error(error.message || "Reçete okunamadı.");
+  }
+}
+
+export function getGeminiKey() {
+  try {
+    return localStorage.getItem(GEMINI_KEY_STORAGE) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function hasGeminiKey() {
+  return Boolean(getGeminiKey());
+}
+
+export function setGeminiKey(key) {
+  const trimmed = (key || "").trim();
+  if (trimmed) localStorage.setItem(GEMINI_KEY_STORAGE, trimmed);
+  else localStorage.removeItem(GEMINI_KEY_STORAGE);
+}
+
+export async function validateGeminiKey(key) {
+  const trimmed = (key || "").trim();
+  if (!trimmed) return { ok: false, error: "Anahtar boş olamaz." };
+  if (!/^AIza[0-9A-Za-z_-]{20,}$/.test(trimmed)) {
+    return { ok: false, error: "Anahtar formatı geçersiz. Google AI Studio'dan aldığın anahtarı 'AIza...' ile başlamalı." };
+  }
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}?key=${encodeURIComponent(trimmed)}`,
+    );
+    if (response.ok) return { ok: true };
+    const data = await response.json().catch(() => ({}));
+    const reason = data?.error?.message || "";
+    if (response.status === 400 || response.status === 403) {
+      return { ok: false, error: `Anahtar geçersiz veya yetkisiz. ${reason}`.trim() };
+    }
+    return { ok: false, error: `Doğrulama başarısız (${response.status}). ${reason}`.trim() };
+  } catch (error) {
+    return { ok: false, error: `Ağ hatası: ${error.message}` };
+  }
+}
+
+export async function sendAssistantMessage({ message, medicineName, userContext }) {
+  const medicines = userContext?.medicines || [];
+
+  if (typeof auth.authStateReady === "function") {
+    try { await auth.authStateReady(); } catch { /* ignore */ }
+  }
+
+  if (auth.currentUser) {
+    try {
+      const result = await chatCallable({ message, medicineName: medicineName || "", medicines });
+      const reply = result?.data?.reply;
+      if (reply) return { reply, source: "cloud-function" };
+    } catch (error) {
+      if (error?.code === "functions/not-found" || error?.code === "functions/unavailable") {
+        const fallback = await tryLocalKey({ message, medicineName, medicines });
+        if (fallback) return fallback;
+      }
+      throw new Error(translateCallableError(error));
+    }
+  }
+
+  const fallback = await tryLocalKey({ message, medicineName, medicines });
+  if (fallback) return fallback;
+
   return {
-    reply: buildLocalAssistantReply(payload),
-    source: "local-dev-fallback",
+    reply: "Asistan henüz aktif değil. Giriş yaparsanız bağlanırsınız; geliştirme modunda Ayarlar → Asistan'dan kendi Gemini anahtarınızı da ekleyebilirsiniz.",
+    source: "not-configured",
   };
 }
 
-function buildLocalAssistantReply({ message, medicineName, userContext }) {
-  const med = medicineName || "seçili ilaç";
-  const lower = message.toLocaleLowerCase("tr-TR");
-  const prefix = "Geliştirme modunda backend bağlı değil; bu yanıt genel bilgilendirme amaçlıdır. ";
+function translateCallableError(error) {
+  const code = error?.code || "";
+  const msg = error?.message || "Asistan şu anda yanıt veremiyor.";
+  if (code === "functions/unauthenticated") return "Asistanı kullanmak için giriş yapın.";
+  if (code === "functions/resource-exhausted") return msg;
+  if (code === "functions/invalid-argument") return msg;
+  return msg;
+}
 
-  const medicalKeywords = ["ilaç", "ilac", "doz", "yan etki", "tok", "aç", "etkileş", "doktor", "eczac", "reçete", "rece", "takvi", "kullan", "saat", "uyku", "ağrı", "agri", "alerj", "vitamin", "takvi", "antibiy"];
-  const looksMedical = medicalKeywords.some((k) => lower.includes(k));
-  if (!looksMedical) {
-    return "Üzgünüm, yalnızca TakviMed uygulamanızdaki ilaç ve sağlık konularına yardımcı olabiliyorum. Bu konuda yardımcı olamam.";
+async function tryLocalKey({ message, medicineName, medicines }) {
+  const key = getGeminiKey();
+  if (!key) return null;
+  try {
+    const reply = await callGeminiDirect({ key, message, medicineName, medicines });
+    return { reply, source: "local-key-dev" };
+  } catch (error) {
+    throw new Error(error.message || "Yerel anahtarla bağlanılamadı.");
+  }
+}
+
+async function callGeminiDirect({ key, message, medicineName, medicines }) {
+  const medsLine = medicines.length ? `Kullanıcının kayıtlı ilaçları: ${medicines.join(", ")}.` : "Kullanıcının kayıtlı ilacı yok.";
+  const focus = medicineName ? `Soru bu ilaç hakkında: ${medicineName}.` : "Genel bir soru.";
+  const systemInstruction = [
+    "Sen TakviMed adlı bir Türk ilaç takip uygulamasının yardımcı asistanısın.",
+    "Yanıtlarını her zaman Türkçe ver. Kısa, anlaşılır ve net ol (3-5 cümle).",
+    "Sağlık tavsiyesi vermek yerine bilgilendirme yap. Doz değişikliği ÖNERME.",
+    "Şüpheli/acil durumlarda doktor veya eczacıya yönlendir.",
+    medsLine,
+    focus,
+  ].join(" ");
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ role: "user", parts: [{ text: message }] }],
+        generationConfig: { temperature: 0.4, maxOutputTokens: 512 },
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const reason = data?.error?.message || `HTTP ${response.status}`;
+    if (response.status === 400 || response.status === 403) {
+      throw new Error(`Gemini anahtarı geçersiz veya yetkisiz: ${reason}`);
+    }
+    if (response.status === 429) {
+      throw new Error("Gemini kotası doldu, biraz sonra tekrar deneyin.");
+    }
+    throw new Error(`Gemini hatası: ${reason}`);
   }
 
-  if (lower.includes("yan etki")) {
-    return `${prefix}${med} için yan etkiler kişiye ve etken maddeye göre değişir. Uyku hali, mide rahatsızlığı, döküntü veya beklenmeyen bir belirti olursa doktorunuza ya da eczacınıza danışın.`;
-  }
-  if (lower.includes("tok") || lower.includes("aç")) {
-    return `${prefix}${med} için aç/tok kullanımı reçete etiketine göre belirlenmelidir. TakviMed'deki ilaç kaydınızda kullanım bilgisini not alanına ekleyebilirsiniz.`;
-  }
-  if (lower.includes("etkileş")) {
-    const names = userContext?.medicines?.join(", ") || "kayıtlı ilaçlarınız";
-    return `${prefix}Etkileşim kontrolü için tüm ilaçlarınızı ve takviyelerinizi eczacınıza gösterin. TakviMed'de görünen kayıtlar: ${names}.`;
-  }
-  if (lower.includes("doktor")) {
-    return `${prefix}Nefes darlığı, şiddetli alerji, bayılma, kanama, göğüs ağrısı veya belirtilerde kötüleşme olursa gecikmeden sağlık kuruluşuna başvurun.`;
-  }
-  return `${prefix}${med} hakkında güvenilir yanıt verebilmem için backend'de /api/chat endpoint'i Gemini anahtarıyla bağlanmalı. Şimdilik doz değişikliği yapmadan doktor/eczacı önerisini esas alın.`;
+  const data = await response.json();
+  const text = data?.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join("\n").trim();
+  if (!text) throw new Error("Gemini boş yanıt döndü.");
+  return text;
 }

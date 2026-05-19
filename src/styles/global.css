@@ -744,6 +744,12 @@ textarea:focus {
   background: var(--primary);
 }
 
+.chat-bubble.error {
+  background: #fdecea;
+  color: #962d22;
+  border: 1px solid #f5c2bd;
+}
+
 .assistant-thinking-card {
   display: inline-flex;
   align-items: center;
@@ -1839,6 +1845,17 @@ button.scan-action-card,
   font-size: 0.78rem;
 }
 
+.family-person-chevron {
+  color: var(--primary-dark);
+  font-size: 1rem;
+  margin-left: 8px;
+  transition: transform 0.18s ease;
+}
+
+.family-person-chevron.open {
+  transform: rotate(180deg);
+}
+
 .family-person-detail {
   margin-top: 10px;
   display: grid;
@@ -1855,6 +1872,94 @@ button.scan-action-card,
 .family-person-actions .ghost-button {
   flex: 1;
   min-width: 140px;
+}
+
+.family-today-section {
+  display: grid;
+  gap: 8px;
+}
+
+.family-today-section > strong {
+  font-size: 0.92rem;
+  color: var(--text-main);
+}
+
+.family-empty-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.family-today-list,
+.family-medlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.family-today-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: white;
+}
+
+.family-today-row.taken {
+  background: #ecf8ef;
+}
+
+.family-today-row.pending {
+  background: #fff5e8;
+}
+
+.family-today-time {
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.family-today-name {
+  display: grid;
+  gap: 2px;
+}
+
+.family-today-name strong {
+  font-size: 0.9rem;
+}
+
+.family-today-name small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.family-today-status {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.family-today-status.taken {
+  color: #1f8f4d;
+}
+
+.family-today-status.pending {
+  color: #b07320;
+}
+
+.family-medlist li {
+  display: grid;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: white;
+}
+
+.family-medlist small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
 .family-stats {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { auth } from "../services/firebase";
 import {
   createMedication,
   deleteMedicationRecord,
@@ -26,20 +27,32 @@ export function useMedications(uid) {
   useEffect(() => {
     setRemoteReady(false);
     if (!uid) return undefined;
-    const localSnapshot = migrateLegacyData();
-    seedMedicationState(uid, localSnapshot).catch(() => {});
-    return subscribeMedicationState(
-      uid,
-      (remoteState) => {
-        setRemoteReady(true);
-        setState(remoteState);
-      },
-      () => {},
-    );
+    let cancelled = false;
+    let unsubscribe = null;
+    (async () => {
+      if (typeof auth.authStateReady === "function") {
+        try { await auth.authStateReady(); } catch { /* ignore */ }
+      }
+      if (cancelled || auth.currentUser?.uid !== uid) return;
+      const localSnapshot = migrateLegacyData();
+      seedMedicationState(uid, localSnapshot).catch((err) => console.error("[useMedications]", err));
+      unsubscribe = subscribeMedicationState(
+        uid,
+        (remoteState) => {
+          setRemoteReady(true);
+          setState(remoteState);
+        },
+        (err) => console.error("[useMedications.subscribe]", err),
+      );
+    })();
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, [uid]);
 
   const persistMedication = useCallback((med) => {
-    if (uid) saveMedication(uid, med).catch(() => {});
+    if (uid) saveMedication(uid, med).catch((err) => console.error("[useMedications]", err));
   }, [uid]);
 
   const addMedication = useCallback((payload) => {
@@ -76,7 +89,7 @@ export function useMedications(uid) {
       };
     });
     window.setTimeout(() => {
-      if (uid && archivedMedication) saveMedication(uid, archivedMedication).catch(() => {});
+      if (uid && archivedMedication) saveMedication(uid, archivedMedication).catch((err) => console.error("[useMedications]", err));
     }, 0);
   }, [uid]);
 
@@ -123,7 +136,7 @@ export function useMedications(uid) {
       const archived = state.archive.find((med) => med.id === id);
       if (archived) {
         const { archivedAt, ...med } = archived;
-        saveMedication(uid, med).catch(() => {});
+        saveMedication(uid, med).catch((err) => console.error("[useMedications]", err));
       }
     }
   }, [state.archive, uid]);
@@ -141,8 +154,8 @@ export function useMedications(uid) {
       });
       if (uid) {
         const updatedMed = medications.find((med) => med.id === medId);
-        if (updatedMed) saveMedication(uid, updatedMed).catch(() => {});
-        saveTakenLog(uid, { date, key, taken: isTaken }).catch(() => {});
+        if (updatedMed) saveMedication(uid, updatedMed).catch((err) => console.error("[useMedications]", err));
+        saveTakenLog(uid, { date, key, taken: isTaken }).catch((err) => console.error("[useMedications]", err));
       }
       return { ...current, checked: nextChecked, medications };
     });

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { auth } from "../services/firebase";
 import {
   dismissReminder as dismissReminderRequest,
   followFamilyByCode,
@@ -24,13 +25,22 @@ export function useFamily({ myUid, myName }) {
       setReminders([]);
       return undefined;
     }
-    const unsubFollowing = subscribeFollowing(myUid, setFollowing);
-    const unsubFollowers = subscribeFollowers(myUid, setFollowers);
-    const unsubReminders = subscribeReminders(myUid, setReminders);
+    let cancelled = false;
+    let cleanups = [];
+    (async () => {
+      if (typeof auth.authStateReady === "function") {
+        try { await auth.authStateReady(); } catch { /* ignore */ }
+      }
+      if (cancelled || auth.currentUser?.uid !== myUid) return;
+      cleanups = [
+        subscribeFollowing(myUid, setFollowing),
+        subscribeFollowers(myUid, setFollowers),
+        subscribeReminders(myUid, setReminders),
+      ];
+    })();
     return () => {
-      unsubFollowing();
-      unsubFollowers();
-      unsubReminders();
+      cancelled = true;
+      cleanups.forEach((fn) => fn && fn());
     };
   }, [myUid]);
 

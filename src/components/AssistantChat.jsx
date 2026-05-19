@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { sendAssistantMessage } from "../services/assistantService";
 
 const quickQuestions = [
@@ -17,7 +17,14 @@ export default function AssistantChat({ medications }) {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const logRef = useRef(null);
   const userContext = useMemo(() => ({ medicationCount: medications.length, medicines: medications.map((med) => med.name) }), [medications]);
+
+  useEffect(() => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
 
   async function submit(text = message) {
     const clean = text.trim();
@@ -30,9 +37,9 @@ export default function AssistantChat({ medications }) {
         sendAssistantMessage({ message: clean, medicineName, userContext }),
         wait(1400),
       ]);
-      setMessages((current) => [...current, { role: "assistant", text: withDisclaimer(data.reply || data.message || "Yanıt alınamadı.") }]);
+      setMessages((current) => [...current, { role: "assistant", text: data.reply || data.message || "Yanıt alınamadı." }]);
     } catch (error) {
-      setMessages((current) => [...current, { role: "assistant", text: withDisclaimer(error.message) }]);
+      setMessages((current) => [...current, { role: "assistant", text: `⚠ ${error.message || "Asistana ulaşılamadı."}`, isError: true }]);
     } finally {
       setLoading(false);
     }
@@ -60,10 +67,10 @@ export default function AssistantChat({ medications }) {
         ))}
       </div>
 
-      <div className="chat-log">
+      <div className="chat-log" ref={logRef}>
         {messages.length === 0 ? <div className="empty-state compact">Sorunuzu yazın veya hızlı sorulardan birini seçin.</div> : null}
         {messages.map((item, index) => (
-          <div className={`chat-bubble ${item.role}`} key={`${item.role}-${index}`}>{item.text}</div>
+          <div className={`chat-bubble ${item.role}${item.isError ? " error" : ""}`} key={`${item.role}-${index}`}>{item.text}</div>
         ))}
         {loading ? (
           <div className="assistant-thinking-card" aria-label="Asistan yanıt hazırlıyor">
@@ -85,7 +92,3 @@ export default function AssistantChat({ medications }) {
   );
 }
 
-function withDisclaimer(text) {
-  if (text.includes(medicalDisclaimer)) return text;
-  return `${text}\n\n${medicalDisclaimer}`;
-}
