@@ -1,7 +1,19 @@
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Capacitor } from "@capacitor/core";
 import { useMemo, useState } from "react";
 import NavIcon from "../components/NavIcon";
 import AddMedicineView from "./AddMedicineView";
 import { scanPrescriptionImage } from "../services/assistantService";
+
+function dataUrlToFile(dataUrl, filename = "prescription.jpg") {
+  const [meta, base64] = dataUrl.split(",");
+  const mimeMatch = /data:([^;]+);/.exec(meta);
+  const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], filename, { type: mime });
+}
 
 const sampleMedications = [
   {
@@ -63,10 +75,8 @@ export default function ScanAddView({ onSave }) {
     setScanError("");
   }
 
-  async function handleFile(event) {
-    const file = event.target.files?.[0];
+  async function processFile(file) {
     if (!file) return;
-    event.target.value = "";
     setLoading(true);
     setMedications([]);
     setSelectedIndex(null);
@@ -82,6 +92,34 @@ export default function ScanAddView({ onSave }) {
       setPreview("");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    await processFile(file);
+  }
+
+  async function pickFromNativeCamera(source) {
+    try {
+      const photo = await Camera.getPhoto({
+        source,
+        resultType: CameraResultType.DataUrl,
+        quality: 85,
+        allowEditing: false,
+        promptLabelHeader: "Reçete",
+        promptLabelCancel: "Vazgeç",
+      });
+      if (!photo?.dataUrl) return;
+      const file = dataUrlToFile(photo.dataUrl);
+      await processFile(file);
+    } catch (err) {
+      if (String(err?.message || "").toLowerCase().includes("cancel")) return;
+      console.error("[ScanAddView.native]", err);
+      setScanError(source === CameraSource.Camera
+        ? "Kamera açılamadı. Ayarlar'dan TakviMed'e kamera izni verdiğinizden emin olun."
+        : "Galeri açılamadı. Ayarlar'dan TakviMed'e fotoğraf izni verdiğinizden emin olun.");
     }
   }
 
@@ -110,6 +148,7 @@ export default function ScanAddView({ onSave }) {
   }
 
   const showForm = selectedIndex !== null && medications[selectedIndex];
+  const isNative = Capacitor.isNativePlatform();
 
   return (
     <main className="view-shell">
@@ -129,18 +168,34 @@ export default function ScanAddView({ onSave }) {
           </div>
         ) : (
           <div className="scan-actions">
-            <label className="scan-action-card">
-              <span className="scan-action-icon"><PhotoIcon /></span>
-              <strong>Fotoğraf Seç</strong>
-              <small>Galeriden reçete veya ilaç etiketi yükleyin.</small>
-              <input type="file" accept="image/*" onChange={handleFile} />
-            </label>
-            <label className="scan-action-card">
-              <span className="scan-action-icon"><CameraIcon /></span>
-              <strong>Kamera ile Çek</strong>
-              <small>Reçete etiketini net şekilde fotoğraflayın.</small>
-              <input type="file" accept="image/*" capture="environment" onChange={handleFile} />
-            </label>
+            {isNative ? (
+              <button type="button" className="scan-action-card scan-action-button" onClick={() => pickFromNativeCamera(CameraSource.Photos)}>
+                <span className="scan-action-icon"><PhotoIcon /></span>
+                <strong>Fotoğraf Seç</strong>
+                <small>Galeriden reçete veya ilaç etiketi yükleyin.</small>
+              </button>
+            ) : (
+              <label className="scan-action-card">
+                <span className="scan-action-icon"><PhotoIcon /></span>
+                <strong>Fotoğraf Seç</strong>
+                <small>Galeriden reçete veya ilaç etiketi yükleyin.</small>
+                <input type="file" accept="image/*" onChange={handleFile} />
+              </label>
+            )}
+            {isNative ? (
+              <button type="button" className="scan-action-card scan-action-button" onClick={() => pickFromNativeCamera(CameraSource.Camera)}>
+                <span className="scan-action-icon"><CameraIcon /></span>
+                <strong>Kamera ile Çek</strong>
+                <small>Reçete etiketini net şekilde fotoğraflayın.</small>
+              </button>
+            ) : (
+              <label className="scan-action-card">
+                <span className="scan-action-icon"><CameraIcon /></span>
+                <strong>Kamera ile Çek</strong>
+                <small>Reçete etiketini net şekilde fotoğraflayın.</small>
+                <input type="file" accept="image/*" capture="environment" onChange={handleFile} />
+              </label>
+            )}
           </div>
         )}
         <div className="button-row">
