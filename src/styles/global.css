@@ -11,7 +11,7 @@ body {
   margin: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  font-family: Inter, ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Plus Jakarta Sans", ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text-main);
   background: radial-gradient(circle at top, rgba(30, 136, 200, 0.14), transparent 34%), #dfeeea;
   -webkit-font-smoothing: antialiased;
@@ -1816,6 +1816,214 @@ button.scan-action-card,
   letter-spacing: 0.16em;
 }
 
+/* ===== Sadeleştirilmiş Aile bağlantı kartı ===== */
+.family-connect {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: white;
+  box-shadow: var(--soft-shadow);
+}
+
+.family-connect-mine,
+.family-connect-add {
+  display: grid;
+  gap: 8px;
+}
+
+.family-connect-label {
+  font-size: 0.82rem;
+  font-weight: 850;
+  color: var(--text-muted);
+}
+
+.family-connect-code-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.family-connect-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 16px;
+  color: var(--secondary-dark);
+  background: #f7fcfb;
+  border: 1px solid var(--border);
+  font-size: 1.5rem;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+}
+
+.family-connect-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.family-connect-divider::before,
+.family-connect-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.family-connect-hint {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #eaf6fb;
+  color: var(--primary-dark);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* ===== Instagram tarzı takip ekranı ===== */
+.family-profile {
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: white;
+  box-shadow: var(--soft-shadow);
+  overflow: hidden;
+}
+
+.family-profile-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px;
+}
+
+.family-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  color: white;
+  background: var(--gradient-main);
+  font-size: 1.7rem;
+  font-weight: 900;
+}
+
+.family-profile-name {
+  display: grid;
+  gap: 3px;
+}
+
+.family-profile-name strong {
+  font-size: 1.12rem;
+  color: var(--text-main);
+}
+
+.family-profile-name span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.family-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.family-tab {
+  display: grid;
+  gap: 2px;
+  padding: 10px 6px;
+  border: 0;
+  border-bottom: 2.5px solid var(--border);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.family-tab-count {
+  font-size: 1.2rem;
+  font-weight: 950;
+  color: var(--text-muted);
+}
+
+.family-tab-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.family-tab.active {
+  border-bottom-color: var(--primary);
+}
+
+.family-tab.active .family-tab-count {
+  color: var(--primary);
+}
+
+.family-tab.active .family-tab-label {
+  color: var(--text-main);
+}
+
+.family-tab-list {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.family-tab-empty {
+  margin: 0;
+  padding: 22px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.family-row-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: white;
+  background: var(--gradient-main);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.family-person-info {
+  display: grid;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.family-person-info strong {
+  font-size: 0.95rem;
+  color: var(--text-main);
+}
+
+.family-person-info small {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.family-follower-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+}
+
 .family-grid,
 .pharmacy-list {
   display: grid;
@@ -1884,7 +2092,7 @@ button.scan-action-card,
 .family-person-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   width: 100%;
   background: transparent;
   border: 0;
@@ -2212,6 +2420,8 @@ button.scan-action-card,
 .dark-mode .dose-item,
 .dark-mode .family-intro,
 .dark-mode .family-share-card,
+.dark-mode .family-connect,
+.dark-mode .family-profile,
 .dark-mode .family-card,
 .dark-mode .designed-empty-state,
 .dark-mode .pharmacy-card,
@@ -2222,10 +2432,16 @@ button.scan-action-card,
 }
 
 .dark-mode .family-stats div,
-.dark-mode .family-code {
+.dark-mode .family-code,
+.dark-mode .family-connect-code {
   color: var(--text-main);
   background: #0f2530;
   border-color: var(--border);
+}
+
+.dark-mode .family-connect-hint {
+  background: #13303d;
+  color: #cfe7f0;
 }
 
 .dark-mode .family-stats span,
