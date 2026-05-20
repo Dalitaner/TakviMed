@@ -4,7 +4,6 @@ dist/
 .env
 .env.local
 android/
-
 # iOS / Xcode generated and user-specific
 ios/App/build/
 ios/App/App.xcodeproj/xcuserdata/
@@ -12,3 +11,9 @@ ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
 ios/App/App.xcworkspace/xcuserdata/
 ios/DerivedData/
 ios/Pods/
+
+# Firebase
+.firebase/
+firebase-debug.log*
+firebase-debug.*.log
+ui-debug.log*

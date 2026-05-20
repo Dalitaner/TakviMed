@@ -7,7 +7,13 @@ admin.initializeApp();
 setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+const NOSYAPI_KEY = defineSecret("NOSYAPI_KEY");
 const GEMINI_MODEL = "gemini-2.5-flash";
+
+// Gemini "high demand" (503) gibi gecici hatalarda otomatik yeniden deneme.
+const MAX_GEMINI_ATTEMPTS = 3;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const retryDelayMs = (attempt) => 700 * 2 ** (attempt - 1) + Math.random() * 300;
 
 const MAX_MESSAGE_CHARS = 500;
 const HOURLY_LIMIT = 20;
@@ -77,6 +83,81 @@ exports.scanPrescription = onCall(
   },
 );
 
+exports.onDutyPharmacies = onCall(
+  { secrets: [NOSYAPI_KEY], timeoutSeconds: 20, invoker: "public" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Nöbetçi eczaneleri görmek için giriş yapmalısınız.");
+    }
+
+    const { latitude, longitude } = request.data || {};
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      throw new HttpsError("invalid-argument", "Geçerli bir konum (enlem/boylam) gerekli.");
+    }
+
+    const pharmacies = await fetchOnDutyPharmacies({
+      apiKey: NOSYAPI_KEY.value(),
+      latitude: lat,
+      longitude: lng,
+    });
+
+    return { pharmacies };
+  },
+);
+
+async function fetchOnDutyPharmacies({ apiKey, latitude, longitude }) {
+  const url = `https://www.nosyapi.com/apiv2/service/pharmacies-on-duty/locations?latitude=${latitude}&longitude=${longitude}`;
+
+  let response;
+  try {
+    response = await fetch(url, { headers: { "X-NSYP": apiKey } });
+  } catch (error) {
+    logger.error("NosyAPI fetch failed", { error: error.message });
+    throw new HttpsError("unavailable", "Nöbetçi eczane servisine ulaşılamadı.");
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    logger.error("NosyAPI non-ok response", { status: response.status, body: body.slice(0, 300) });
+    if (response.status === 401 || response.status === 403) {
+      throw new HttpsError("internal", "Nöbetçi eczane servisi yetkilendirme hatası (API anahtarını kontrol edin).");
+    }
+    if (response.status === 429) {
+      throw new HttpsError("resource-exhausted", "Nöbetçi eczane sorgu limiti doldu, biraz sonra tekrar deneyin.");
+    }
+    throw new HttpsError("internal", "Nöbetçi eczane verisi alınamadı.");
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!payload || payload.status !== "success" || !Array.isArray(payload.data)) {
+    logger.error("NosyAPI unexpected payload", { payload });
+    throw new HttpsError("internal", (payload && payload.message) || "Nöbetçi eczane verisi okunamadı.");
+  }
+
+  const pharmacies = payload.data
+    .map((item) => ({
+      name: String(item.pharmacyName || "").trim(),
+      address: String(item.address || "").trim(),
+      district: String(item.district || item.town || "").trim(),
+      city: String(item.city || "").trim(),
+      phone: String(item.phone || "").trim(),
+      directions: String(item.directions || "").trim(),
+      dutyStart: String(item.pharmacyDutyStart || "").trim(),
+      dutyEnd: String(item.pharmacyDutyEnd || "").trim(),
+      latitude: Number(item.latitude) || null,
+      longitude: Number(item.longitude) || null,
+    }))
+    .filter((item) => item.name);
+
+  if (pharmacies.length === 0 && payload.data.length > 0) {
+    logger.warn("NosyAPI satır döndü ama isim ayrıştırılamadı", { sample: payload.data[0] });
+  }
+
+  return pharmacies;
+}
+
 async function scanWithGemini({ apiKey, imageBase64, mimeType }) {
   const prompt = `Bu görsel bir reçete, ilaç kutusu veya çoklu ilaç etiketi içeren bir kağıt olabilir. Görselde BİRDEN FAZLA ilaç olabilir (Türkiye'de eczanelerin verdiği reçete kağıtlarında genellikle her ilaç için ayrı bir kutucuk vardır).
 
@@ -122,23 +203,39 @@ Kurallar:
     },
   };
 
+  const requestInit = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
+
+  // 503/500/429 (sunucu mesgul - "high demand") veya ag hatasinda bekleyip tekrar dene.
   let response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch (error) {
-    logger.error("Gemini fetch failed", { error: error.message });
-    throw new HttpsError("unavailable", `Gemini servisine ulaşılamadı: ${error.message}`);
+  for (let attempt = 1; attempt <= MAX_GEMINI_ATTEMPTS; attempt += 1) {
+    try {
+      response = await fetch(url, requestInit);
+    } catch (error) {
+      if (attempt >= MAX_GEMINI_ATTEMPTS) {
+        logger.error("Gemini fetch failed", { error: error.message });
+        throw new HttpsError("unavailable", `Gemini servisine ulaşılamadı: ${error.message}`);
+      }
+      await sleep(retryDelayMs(attempt));
+      continue;
+    }
+    if ([500, 503, 429].includes(response.status) && attempt < MAX_GEMINI_ATTEMPTS) {
+      await sleep(retryDelayMs(attempt));
+      continue;
+    }
+    break;
   }
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     const reason = data?.error?.message || `HTTP ${response.status}`;
     logger.error("Gemini returned non-ok", { status: response.status, reason, body: data });
-    if (response.status === 429) throw new HttpsError("resource-exhausted", "Gemini servisi meşgul.");
+    if (response.status === 429 || response.status === 503 || response.status === 500) {
+      throw new HttpsError("resource-exhausted", "Gemini servisi şu an çok yoğun. Lütfen biraz sonra tekrar deneyin.");
+    }
     if (response.status === 400) throw new HttpsError("invalid-argument", `Gemini reddetti: ${reason}`);
     throw new HttpsError("internal", `Gemini hatası: ${reason}`);
   }
@@ -254,43 +351,27 @@ async function enforceRateLimit(uid) {
   });
 }
 
-const OFF_TOPIC_REFUSAL = "Üzgünüm, yalnızca TakviMed uygulamanızdaki ilaç ve sağlık konularına yardımcı olabiliyorum. Bu konuda yardımcı olamam. Doktor veya eczacınıza danışmanız gereken bir konu varsa size bu konuda yol gösterebilirim.";
-
 async function callGemini({ apiKey, message, medicineName, medicines }) {
   const contextLine = medicines.length
     ? `Kullanıcının kayıtlı ilaçları: ${medicines.join(", ")}.`
     : "Kullanıcının kayıtlı ilacı yok.";
-  const focus = medicineName ? `Şu an seçili ilaç: ${medicineName}.` : "";
-  const systemInstruction = `Sen TakviMed adlı bir ilaç ve takviye hatırlatma uygulamasının sağlık asistanısın.
-
-KAPSAM (yalnızca şunlara cevap ver):
-- Kullanıcının kayıtlı ilaçları, etken maddeleri ya da takviyeleri hakkında genel bilgi (ne için kullanılır, kullanım zamanı, yaygın yan etkiler, depolama)
-- Aç/tok kullanım, sıklık, etiket bilgisi
-- İlaç-ilaç veya ilaç-takviye etkileşimleri hakkında genel uyarı ve eczacıya yönlendirme
-- TakviMed uygulamasının nasıl kullanılacağı (hatırlatma, aile takip, eczane bul)
-- Sağlık personeline başvurmayı gerektiren belirti uyarıları
-- Karşılama mesajlarına ("selam", "merhaba", "iyi günler" vs.) kısa, sıcak bir karşılama ve nasıl yardımcı olabileceğini söyle.
-
-KAPSAM DIŞI — REDDET:
-İlaç ve sağlık konuları dışındaki HER ŞEY (matematik, kod, hava durumu, kumar, finans, iş kurma, hukuk, oyun, genel sohbet, kişisel tavsiye, alışveriş, vs.) için TEK CÜMLE şu cevabı ver ve KONUYA HİÇ GİRME, görüş bildirme, tahmin yapma, hesaplama yapma:
-"${OFF_TOPIC_REFUSAL}"
-
-KESİNLİKLE YAPMA:
-- Tanı (teşhis) koymak — "X hastalığınız var", "Y nedenle olabilir" gibi cümleler kurma; "doktorunuza danışın" de
-- Doz önermek, doz değişikliği önermek, ilaç başlatma veya durdurma tavsiyesi vermek
-- Reçete yazmak veya hangi ilacı kullanması gerektiğini söylemek
-- Belirli bir hastalık için "şunu kullanın" tarzı kesin tavsiye vermek
-- Acil durumlarda kendi kendine müdahale önermek — daima "Acilse 112'yi arayın veya acile başvurun" de
-
-HER MEDİKAL YANITTA:
-- Türkçe, sade, kısa ve net dilde cevap ver (3-5 cümleyi geçme)
-- Sağlık personeline danışma yönergesini ekle ("doktor/eczacınıza danışın")
-- Emin değilsen veya bilgin yoksa açıkça "Bu konuda kesin bilgi veremem, eczacınıza danışın" de — uydurma
-
-${contextLine} ${focus}`.trim();
+  const focus = medicineName ? `Soru bu ilaç hakkında: ${medicineName}.` : "Genel bir soru.";
+  const systemInstruction = [
+    "Sen TakviMed adlı bir Türk ilaç takip uygulamasının yardımcı asistanısın.",
+    "Yanıtlarını her zaman Türkçe ver. Kısa, anlaşılır ve net ol (3-5 cümle).",
+    "GÖREV ALANIN: Yalnızca sağlık, ilaçlar, takviyeler, hastalıklar, tedaviler, belirtiler, beslenme ve TakviMed uygulamasının kullanımı ile ilgili soruları yanıtla.",
+    "Bu alanın DIŞINDAKİ hiçbir soruya cevap verme (örn. matematik, fizik, tarih, coğrafya, kodlama, genel kültür, güncel olaylar, eğlence, kişisel görüş veya sohbet). Kullanıcı ısrar etse veya konuyu zorla sağlıkla ilişkilendirmeye çalışsa bile konu dışına çıkma.",
+    "Konu dışı bir soru gelirse SADECE şu cümleyle yanıt ver ve başka hiçbir bilgi ekleme: \"Üzgünüm, ben yalnızca sağlık ve ilaçlarınızla ilgili sorularda yardımcı olabilirim.\"",
+    "İSTİSNA: Karşılama mesajlarına ('selam', 'merhaba', 'iyi günler' vb.) bunu konu dışı sayma; kısa ve sıcak bir karşılama yapıp ilaç/sağlık konusunda nasıl yardımcı olabileceğini sor.",
+    "Sağlık tavsiyesi vermek yerine bilgilendirme yap. Doz değişikliği ÖNERME.",
+    "TANI KOYMA: 'X hastalığınız var' gibi teşhis cümleleri kurma; bunun yerine doktora danışmayı öner.",
+    "Şüpheli/acil durumlarda doktor veya eczacıya yönlendir; acil durumda '112'yi arayın' de.",
+    contextLine,
+    focus,
+  ].join(" ");
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(url, {
+  const requestInit = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -298,13 +379,32 @@ ${contextLine} ${focus}`.trim();
       contents: [{ role: "user", parts: [{ text: message }] }],
       generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
     }),
-  });
+  };
+
+  // 503/500/429 (sunucu mesgul) veya ag hatasi gelirse bekleyip tekrar dene.
+  let response;
+  for (let attempt = 1; attempt <= MAX_GEMINI_ATTEMPTS; attempt += 1) {
+    try {
+      response = await fetch(url, requestInit);
+    } catch (networkError) {
+      if (attempt >= MAX_GEMINI_ATTEMPTS) {
+        throw new HttpsError("unavailable", `Gemini servisine ulaşılamadı: ${networkError.message}`);
+      }
+      await sleep(retryDelayMs(attempt));
+      continue;
+    }
+    if ([500, 503, 429].includes(response.status) && attempt < MAX_GEMINI_ATTEMPTS) {
+      await sleep(retryDelayMs(attempt));
+      continue;
+    }
+    break;
+  }
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     const reason = data?.error?.message || `HTTP ${response.status}`;
-    if (response.status === 429) {
-      throw new HttpsError("resource-exhausted", "Gemini servisi şu an meşgul, biraz sonra tekrar deneyin.");
+    if (response.status === 429 || response.status === 503 || response.status === 500) {
+      throw new HttpsError("resource-exhausted", "Gemini servisi şu an çok yoğun. Lütfen biraz sonra tekrar deneyin.");
     }
     throw new HttpsError("internal", `Gemini hatası: ${reason}`);
   }
@@ -315,7 +415,7 @@ ${contextLine} ${focus}`.trim();
   const finishReason = candidate?.finishReason;
 
   if (finishReason === "SAFETY") {
-    return OFF_TOPIC_REFUSAL;
+    return "Üzgünüm, bu soruya güvenli bir yanıt veremiyorum. Sağlık veya ilaçlarınızla ilgili bir konuda yardımcı olabilirim.";
   }
   if (!text) {
     logger.error("Gemini empty response", { finishReason, promptFeedback: data?.promptFeedback });
@@ -323,10 +423,6 @@ ${contextLine} ${focus}`.trim();
   }
   if (finishReason === "MAX_TOKENS") {
     return text + "\n\n(Yanıt uzunluk sınırına ulaştı, daha kısa sorabilirsiniz.)";
-  }
-  if (finishReason && finishReason !== "STOP") {
-    logger.error("Gemini did not finish", { finishReason });
-    return text;
   }
   return text;
 }

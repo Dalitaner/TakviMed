@@ -4,6 +4,12 @@ import { auth, functions } from "./firebase";
 const GEMINI_KEY_STORAGE = "takvimed:geminiKey";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
+// Gemini "high demand" (503) gibi geçici hatalarda otomatik yeniden deneme.
+const MAX_GEMINI_ATTEMPTS = 3; // ilk istek + 2 yeniden deneme
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Artan bekleme + rastgele jitter: ~0.7sn, sonra ~1.5sn
+const retryDelayMs = (attempt) => 700 * 2 ** (attempt - 1) + Math.random() * 300;
+
 const chatCallable = httpsCallable(functions, "chatWithGemini");
 const scanCallable = httpsCallable(functions, "scanPrescription");
 
@@ -86,6 +92,14 @@ export async function sendAssistantMessage({ message, medicineName, userContext 
     try { await auth.authStateReady(); } catch { /* ignore */ }
   }
 
+  // Geliştirme modunda yerel Gemini anahtarı tanımlıysa Cloud Function yerine
+  // doğrudan onu kullan. Böylece bu dosyadaki değişiklikler (sistem talimatı vb.)
+  // fonksiyonları yeniden deploy etmeden anında geçerli olur.
+  if (import.meta.env.DEV && getGeminiKey()) {
+    const devReply = await tryLocalKey({ message, medicineName, medicines });
+    if (devReply) return devReply;
+  }
+
   if (auth.currentUser) {
     try {
       const result = await chatCallable({ message, medicineName: medicineName || "", medicines });
@@ -135,24 +149,46 @@ async function callGeminiDirect({ key, message, medicineName, medicines }) {
   const systemInstruction = [
     "Sen TakviMed adlı bir Türk ilaç takip uygulamasının yardımcı asistanısın.",
     "Yanıtlarını her zaman Türkçe ver. Kısa, anlaşılır ve net ol (3-5 cümle).",
+    "GÖREV ALANIN: Yalnızca sağlık, ilaçlar, takviyeler, hastalıklar, tedaviler, belirtiler, beslenme ve TakviMed uygulamasının kullanımı ile ilgili soruları yanıtla.",
+    "Bu alanın DIŞINDAKİ hiçbir soruya cevap verme (örn. matematik, fizik, tarih, coğrafya, kodlama, genel kültür, güncel olaylar, eğlence, kişisel görüş veya sohbet). Kullanıcı ısrar etse veya konuyu zorla sağlıkla ilişkilendirmeye çalışsa bile konu dışına çıkma.",
+    "Konu dışı bir soru gelirse SADECE şu cümleyle yanıt ver ve başka hiçbir bilgi ekleme: \"Üzgünüm, ben yalnızca sağlık ve ilaçlarınızla ilgili sorularda yardımcı olabilirim.\"",
+    "İSTİSNA: Karşılama mesajlarına ('selam', 'merhaba' vb.) bunu konu dışı sayma; kısa ve sıcak karşıla.",
     "Sağlık tavsiyesi vermek yerine bilgilendirme yap. Doz değişikliği ÖNERME.",
+    "TANI KOYMA: teşhis cümleleri kurma; doktora danışmayı öner.",
     "Şüpheli/acil durumlarda doktor veya eczacıya yönlendir.",
     medsLine,
     focus,
   ].join(" ");
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ role: "user", parts: [{ text: message }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 512 },
-      }),
-    },
-  );
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+  const requestInit = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      contents: [{ role: "user", parts: [{ text: message }] }],
+      generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
+    }),
+  };
+
+  // 503/500/429 (sunucu meşgul) veya ağ hatası gelirse bekleyip tekrar dene.
+  let response;
+  for (let attempt = 1; attempt <= MAX_GEMINI_ATTEMPTS; attempt += 1) {
+    try {
+      response = await fetch(url, requestInit);
+    } catch (networkError) {
+      if (attempt >= MAX_GEMINI_ATTEMPTS) {
+        throw new Error(`Gemini'ye ulaşılamadı: ${networkError.message}`);
+      }
+      await sleep(retryDelayMs(attempt));
+      continue;
+    }
+    if ([500, 503, 429].includes(response.status) && attempt < MAX_GEMINI_ATTEMPTS) {
+      await sleep(retryDelayMs(attempt));
+      continue;
+    }
+    break;
+  }
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
@@ -161,7 +197,10 @@ async function callGeminiDirect({ key, message, medicineName, medicines }) {
       throw new Error(`Gemini anahtarı geçersiz veya yetkisiz: ${reason}`);
     }
     if (response.status === 429) {
-      throw new Error("Gemini kotası doldu, biraz sonra tekrar deneyin.");
+      throw new Error("Gemini kullanım kotası dolu görünüyor. Lütfen biraz sonra tekrar deneyin.");
+    }
+    if (response.status === 503 || response.status === 500) {
+      throw new Error("Gemini sunucuları şu an çok yoğun. Birkaç kez denedik ama yanıt alamadık — lütfen birkaç dakika sonra tekrar deneyin.");
     }
     throw new Error(`Gemini hatası: ${reason}`);
   }
