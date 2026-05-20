@@ -8,6 +8,7 @@ import PasswordField from "./components/PasswordField";
 import SideMenu from "./components/SideMenu";
 import SplashScreen from "./components/SplashScreen";
 import Toast from "./components/Toast";
+import Tutorial from "./components/Tutorial";
 import { useFamily, useFollowedMembersMedications } from "./hooks/useFamily";
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { useMedications } from "./hooks/useMedications";
@@ -76,6 +77,7 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(() => localStorage.getItem("takvimed:onboardingDone") === "1");
   const [authMessage, setAuthMessage] = useState("");
+  const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle("large-text", Boolean(settings.largeText));
@@ -95,6 +97,12 @@ export default function App() {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    if (profile && onboardingDone && localStorage.getItem("takvimed:tutorialDone") !== "1") {
+      setShowTutorial(true);
+    }
+  }, [profile, onboardingDone]);
 
   useEffect(() => {
     ensureNotificationPermissions().catch(() => {});
@@ -475,6 +483,15 @@ export default function App() {
         onLogout={logout}
       />
       <Modal open={false} title="" onClose={() => {}} />
+      <Tutorial
+        open={showTutorial}
+        onNavigate={setActiveView}
+        onClose={() => {
+          localStorage.setItem("takvimed:tutorialDone", "1");
+          setActiveView("calendar");
+          setShowTutorial(false);
+        }}
+      />
       <Toast toast={toast} />
     </div>
   );
