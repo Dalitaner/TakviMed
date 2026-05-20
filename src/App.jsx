@@ -8,7 +8,7 @@ import PasswordField from "./components/PasswordField";
 import SideMenu from "./components/SideMenu";
 import SplashScreen from "./components/SplashScreen";
 import Toast from "./components/Toast";
-import { useFamily } from "./hooks/useFamily";
+import { useFamily, useFollowedMembersMedications } from "./hooks/useFamily";
 import { useLocalStorage } from "./hooks/useLocalStorage";
 import { useMedications } from "./hooks/useMedications";
 import AddMedicineView from "./views/AddMedicineView";
@@ -28,6 +28,7 @@ import {
   registerMedicationNotificationActions,
   snoozeMedicationReminder,
   subscribeMedicationNotificationActions,
+  syncFamilyReminders,
   syncMedicationReminders,
 } from "./services/notificationService";
 import {
@@ -67,6 +68,7 @@ export default function App() {
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState("");
   const family = useFamily({ myUid: profile?.uid, myName: profile?.name });
+  const followedMembersMeds = useFollowedMembersMedications(family.following);
   const [showSplash, setShowSplash] = useState(() => typeof localStorage === "undefined" || localStorage.getItem("takvimed:splashSeen") !== "1");
   const [pinInput, setPinInput] = useState("");
   const [showLockPin, setShowLockPin] = useState(false);
@@ -106,6 +108,12 @@ export default function App() {
       reminderLeadMinutes: settings.reminderLeadMinutes,
     }).catch(() => {});
   }, [meds.medications, settings.reminderNotifications, settings.reminderLeadMinutes]);
+
+  useEffect(() => {
+    syncFamilyReminders(followedMembersMeds, {
+      reminderNotifications: settings.reminderNotifications,
+    }).catch(() => {});
+  }, [followedMembersMeds, settings.reminderNotifications]);
 
   useEffect(() => {
     const cleanup = subscribeMedicationNotificationActions(({ actionId, medicationId, scheduledTime }) => {

@@ -101,3 +101,39 @@ export function useFollowedMemberData(memberUid) {
 
   return { medications, checked };
 }
+
+export function useFollowedMembersMedications(following) {
+  const [membersData, setMembersData] = useState([]);
+  const key = following.map((f) => f.uid).sort().join(",");
+
+  useEffect(() => {
+    if (!following.length) {
+      setMembersData([]);
+      return undefined;
+    }
+    const nameByUid = {};
+    const medsByUid = {};
+    following.forEach((f) => { nameByUid[f.uid] = f.followedName; });
+
+    function emit() {
+      setMembersData(
+        following.map((f) => ({
+          uid: f.uid,
+          name: nameByUid[f.uid] || "Yakınınız",
+          medications: medsByUid[f.uid] || [],
+        })),
+      );
+    }
+
+    const unsubs = following.map((f) =>
+      subscribeMemberMedications(f.uid, (meds) => {
+        medsByUid[f.uid] = meds;
+        emit();
+      }),
+    );
+    return () => unsubs.forEach((u) => u && u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  return membersData;
+}

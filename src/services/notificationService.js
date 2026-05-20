@@ -118,6 +118,49 @@ export async function syncMedicationReminders(medications, settings) {
   }
 }
 
+export async function syncFamilyReminders(members, settings) {
+  if (!isNativeRuntime()) return;
+
+  const pending = await LocalNotifications.getPending();
+  const managedIds = pending.notifications
+    .filter((n) => n.extra && n.extra.source === "takvimed-family")
+    .map((n) => ({ id: n.id }));
+  if (managedIds.length) {
+    await LocalNotifications.cancel({ notifications: managedIds });
+  }
+
+  if (settings && settings.reminderNotifications === false) return;
+
+  const toSchedule = [];
+
+  (members || []).forEach((member) => {
+    if (!member?.uid) return;
+    (member.medications || []).forEach((med) => {
+      if (!med?.id || med.archivedAt) return;
+      (med.times || []).forEach((time) => {
+        const slot = shiftClockTime(time, 0);
+        if (!slot) return;
+        toSchedule.push({
+          id: hashNotificationId(`family__${member.uid}__${med.id}__${time}`),
+          title: `${member.name || "Yakınınız"} — ilaç saati`,
+          body: [med.name || "İlaç", med.dose, `Saat ${time}`].filter(Boolean).join(" · "),
+          sound: undefined,
+          smallIcon: "ic_stat_icon_config_sample",
+          extra: {
+            source: "takvimed-family",
+            memberUid: member.uid,
+          },
+          schedule: { on: slot, allowWhileIdle: true },
+        });
+      });
+    });
+  });
+
+  if (toSchedule.length) {
+    await LocalNotifications.schedule({ notifications: toSchedule });
+  }
+}
+
 export async function snoozeMedicationReminder({ medication, scheduledTime, minutes = 5 }) {
   if (!isNativeRuntime() || !medication) return;
   const at = new Date(Date.now() + Math.max(1, minutes) * 60_000);

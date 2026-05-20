@@ -2129,6 +2129,50 @@ button.scan-action-card,
   color: #edf8fb;
 }
 
+.dark-mode .family-person.expanded {
+  background: #0f2530;
+}
+
+.dark-mode .family-person-row span,
+.dark-mode .family-person > span,
+.dark-mode .family-today-section > strong,
+.dark-mode .family-today-time,
+.dark-mode .family-today-name strong,
+.dark-mode .family-medlist strong,
+.dark-mode .family-reminder strong {
+  color: #edf8fb;
+}
+
+.dark-mode .family-person-row small,
+.dark-mode .family-empty-note,
+.dark-mode .family-today-name small,
+.dark-mode .family-medlist small,
+.dark-mode .family-reminder span {
+  color: #a8c0c9;
+}
+
+.dark-mode .family-today-row,
+.dark-mode .family-medlist li,
+.dark-mode .family-reminder {
+  background: #13303d;
+}
+
+.dark-mode .family-today-row.taken {
+  background: #16352a;
+}
+
+.dark-mode .family-today-row.pending {
+  background: #3a2f1c;
+}
+
+.dark-mode .family-today-status.taken {
+  color: #62d28f;
+}
+
+.dark-mode .family-today-status.pending {
+  color: #e8b057;
+}
+
 .dark-mode input,
 .dark-mode select,
 .dark-mode textarea,
@@ -2196,6 +2240,141 @@ button.scan-action-card,
 .dark-mode .auth-note {
   color: #d7f3ff;
   background: #0f2530;
+}
+
+/* --- Consolidated dark-mode contrast fixes --- */
+
+/* Alert cards */
+.dark-mode .alert-card {
+  background: #13303d;
+}
+
+.dark-mode .alert-card.danger {
+  color: #f0a9a9;
+  background: #3a2126;
+  border-color: rgba(208, 68, 68, 0.4);
+}
+
+.dark-mode .alert-card.warning {
+  color: #e8b057;
+  background: #3a2f1c;
+  border-color: rgba(217, 130, 43, 0.4);
+}
+
+/* Taken dose tint */
+.dark-mode .dose-item.taken {
+  background: #16352a;
+  border-color: rgba(88, 198, 107, 0.4);
+}
+
+/* Low-stock badge (amber) */
+.dark-mode .low-stock-badge {
+  color: #e8b057;
+  background: #3a2f1c;
+}
+
+/* Blue ghost chips / pills / buttons */
+.dark-mode .time-stack span,
+.dark-mode .status-pill,
+.dark-mode .chip-row button,
+.dark-mode .ghost-button,
+.dark-mode .time-editor button,
+.dark-mode .archive-row button,
+.dark-mode .archive-toggle,
+.dark-mode .password-field button,
+.dark-mode .calendar-header button,
+.dark-mode .segment-control,
+.dark-mode .nav-indicator,
+.dark-mode .family-intro li {
+  color: #d7f3ff;
+  background: #1d3b48;
+}
+
+.dark-mode .segment-control button {
+  color: #d7f3ff;
+}
+
+/* Danger button / pill (red tint) */
+.dark-mode .danger-button,
+.dark-mode .status-pill.danger {
+  color: #f0a9a9;
+  background: #3a2126;
+}
+
+/* Warning pill / partial day (amber tint) */
+.dark-mode .status-pill.warning,
+.dark-mode .day-cell.partial {
+  color: #e8b057;
+  background: #3a2f1c;
+}
+
+/* Success pill / complete day / family badge (green tint) */
+.dark-mode .status-pill.good,
+.dark-mode .day-cell.complete,
+.dark-mode .family-card small {
+  color: #9fe8b8;
+  background: #16352a;
+}
+
+/* Today cell (blue tint) */
+.dark-mode .day-cell.today {
+  color: #d7f3ff;
+  background: #1d3b48;
+}
+
+/* Summary stat tiles */
+.dark-mode .summary-grid > div {
+  background: #0f2530;
+  border-color: var(--border);
+}
+
+/* Weekly chart bar track */
+.dark-mode .weekly-bar {
+  background: #0f2530;
+}
+
+/* Chat error bubble */
+.dark-mode .chat-bubble.error {
+  color: #f0a9a9;
+  background: #3a2126;
+  border-color: rgba(208, 68, 68, 0.4);
+}
+
+/* Modal panels */
+.dark-mode .modal-panel {
+  color: var(--text-main);
+  background: var(--card-bg);
+}
+
+/* Expiry action card (red tint) */
+.dark-mode .expiry-action-card {
+  background: #3a2126;
+  border-color: rgba(208, 68, 68, 0.4);
+}
+
+/* Location strip */
+.dark-mode .location-strip {
+  background: var(--card-bg);
+  border-color: var(--border);
+}
+
+/* Active pharmacy card */
+.dark-mode .pharmacy-card.active {
+  background: #0f2530;
+  border-color: rgba(30, 136, 200, 0.5);
+}
+
+/* PIN card */
+.dark-mode .pin-card {
+  color: var(--text-main);
+  background: var(--card-bg);
+}
+
+/* Drawer list hover/active */
+.dark-mode .drawer-list button.active,
+.dark-mode .drawer-list button:hover {
+  color: #d7f3ff;
+  background: #1d3b48;
 }
 
 .settings-screen {
