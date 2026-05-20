@@ -203,23 +203,39 @@ Kurallar:
     },
   };
 
+  const requestInit = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
+
+  // 503/500/429 (sunucu mesgul - "high demand") veya ag hatasinda bekleyip tekrar dene.
   let response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch (error) {
-    logger.error("Gemini fetch failed", { error: error.message });
-    throw new HttpsError("unavailable", `Gemini servisine ulaşılamadı: ${error.message}`);
+  for (let attempt = 1; attempt <= MAX_GEMINI_ATTEMPTS; attempt += 1) {
+    try {
+      response = await fetch(url, requestInit);
+    } catch (error) {
+      if (attempt >= MAX_GEMINI_ATTEMPTS) {
+        logger.error("Gemini fetch failed", { error: error.message });
+        throw new HttpsError("unavailable", `Gemini servisine ulaşılamadı: ${error.message}`);
+      }
+      await sleep(retryDelayMs(attempt));
+      continue;
+    }
+    if ([500, 503, 429].includes(response.status) && attempt < MAX_GEMINI_ATTEMPTS) {
+      await sleep(retryDelayMs(attempt));
+      continue;
+    }
+    break;
   }
 
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     const reason = data?.error?.message || `HTTP ${response.status}`;
     logger.error("Gemini returned non-ok", { status: response.status, reason, body: data });
-    if (response.status === 429) throw new HttpsError("resource-exhausted", "Gemini servisi meşgul.");
+    if (response.status === 429 || response.status === 503 || response.status === 500) {
+      throw new HttpsError("resource-exhausted", "Gemini servisi şu an çok yoğun. Lütfen biraz sonra tekrar deneyin.");
+    }
     if (response.status === 400) throw new HttpsError("invalid-argument", `Gemini reddetti: ${reason}`);
     throw new HttpsError("internal", `Gemini hatası: ${reason}`);
   }
