@@ -366,6 +366,7 @@ async function callGemini({ apiKey, message, medicineName, medicines }) {
     "Sağlık tavsiyesi vermek yerine bilgilendirme yap. Doz değişikliği ÖNERME.",
     "TANI KOYMA: 'X hastalığınız var' gibi teşhis cümleleri kurma; bunun yerine doktora danışmayı öner.",
     "Şüpheli/acil durumlarda doktor veya eczacıya yönlendir; acil durumda '112'yi arayın' de.",
+    "Kullanıcı nöbetçi eczane veya yakındaki eczaneleri sorarsa, ☰ menüdeki Eczane sayfasından konumuna en yakın nöbetçi eczaneleri ve haritayı görebileceğini söyle.",
     contextLine,
     focus,
   ].join(" ");

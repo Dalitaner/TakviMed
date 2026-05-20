@@ -6,21 +6,22 @@ const items = [
   { id: "medicines", label: "İlaçlarım" },
   { id: "family", label: "Aile" },
   { id: "summary", label: "Özet" },
-  { id: "assistant", label: "Asistan" },
-  { id: "pharmacy", label: "Eczane" },
 ];
 
 export default function BottomNav({ activeView, onChange }) {
-  const activeIndex = Math.max(0, items.findIndex((item) => item.id === activeView));
+  const activeIndex = items.findIndex((item) => item.id === activeView);
 
   return (
     <nav className="bottom-nav" aria-label="Alt gezinme">
-      <span className="nav-indicator" style={{ transform: `translateX(${activeIndex * 100}%)` }} />
+      {activeIndex >= 0 ? (
+        <span className="nav-indicator" style={{ transform: `translateX(${activeIndex * 100}%)` }} />
+      ) : null}
       {items.map((item) => (
         <button
           className={`nav-item ${activeView === item.id ? "active" : ""}`}
           key={item.id}
           type="button"
+          data-tut={item.id}
           onClick={() => onChange(item.id)}
           aria-current={activeView === item.id ? "page" : undefined}
         >

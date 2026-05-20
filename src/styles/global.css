@@ -880,7 +880,7 @@ textarea:focus {
   bottom: calc(10px + env(safe-area-inset-bottom));
   z-index: 30;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   width: min(calc(100% - 18px), 448px);
   padding: 8px;
   border: 1px solid rgba(220, 237, 234, 0.76);
@@ -895,7 +895,7 @@ textarea:focus {
   position: absolute;
   top: 8px;
   left: 8px;
-  width: calc((100% - 16px) / 7);
+  width: calc((100% - 16px) / 5);
   height: calc(100% - 16px);
   border-radius: 22px;
   background: #eaf6fb;
@@ -912,7 +912,7 @@ textarea:focus {
   border: 0;
   color: #8ea0ba;
   background: transparent;
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   font-weight: 800;
 }
 
@@ -2927,7 +2927,7 @@ button.scan-action-card,
   .bottom-nav::before {
     top: 6px;
     left: 6px;
-    width: calc((100% - 12px) / 7);
+    width: calc((100% - 12px) / 5);
     height: calc(100% - 12px);
     border-radius: 18px;
   }

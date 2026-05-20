@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import AssistantChat from "./components/AssistantChat";
 import BottomNav from "./components/BottomNav";
 import Header from "./components/Header";
+import MascotButton from "./components/MascotButton";
 import Modal from "./components/Modal";
 import Onboarding from "./components/Onboarding";
 import PasswordField from "./components/PasswordField";
 import SideMenu from "./components/SideMenu";
-import SplashScreen from "./components/SplashScreen";
 import Toast from "./components/Toast";
 import Tutorial from "./components/Tutorial";
 import { useFamily, useFollowedMembersMedications } from "./hooks/useFamily";
@@ -70,7 +70,6 @@ export default function App() {
   const [toast, setToast] = useState("");
   const family = useFamily({ myUid: profile?.uid, myName: profile?.name });
   const followedMembersMeds = useFollowedMembersMedications(family.following);
-  const [showSplash, setShowSplash] = useState(() => typeof localStorage === "undefined" || localStorage.getItem("takvimed:splashSeen") !== "1");
   const [pinInput, setPinInput] = useState("");
   const [showLockPin, setShowLockPin] = useState(false);
   const [unlocked, setUnlocked] = useState(() => !settings.pinEnabled || !settings.pinCredential);
@@ -385,14 +384,6 @@ export default function App() {
 
   return (
     <div className="app-frame">
-      <SplashScreen
-        visible={showSplash}
-        onDone={() => {
-          localStorage.setItem("takvimed:splashSeen", "1");
-          localStorage.setItem("splash_seen", "1");
-          setShowSplash(false);
-        }}
-      />
       <Header
         title={title}
         onMenu={() => setDrawerOpen(true)}
@@ -483,11 +474,16 @@ export default function App() {
         onLogout={logout}
       />
       <Modal open={false} title="" onClose={() => {}} />
+      {activeView !== "assistant" && !showTutorial ? (
+        <MascotButton onClick={() => setActiveView("assistant")} />
+      ) : null}
       <Tutorial
         open={showTutorial}
         onNavigate={setActiveView}
+        onDrawer={setDrawerOpen}
         onClose={() => {
           localStorage.setItem("takvimed:tutorialDone", "1");
+          setDrawerOpen(false);
           setActiveView("calendar");
           setShowTutorial(false);
         }}

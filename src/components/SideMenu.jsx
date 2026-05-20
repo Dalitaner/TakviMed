@@ -25,6 +25,7 @@ export default function SideMenu({ open, profile, activeView, onClose, onNavigat
               className={activeView === item.id ? "active" : ""}
               type="button"
               key={item.id}
+              data-tut={item.id}
               onClick={() => {
                 onNavigate(item.id);
                 onClose();

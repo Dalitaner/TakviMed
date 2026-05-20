@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import Mascot from "./Mascot";
 
-// Adımlar — alt menü sırasına göre (navIndex, .nav-item dizini).
+// Adımlar — inDrawer:false alt menüde, inDrawer:true ☰ burger menüde tanıtılır.
 const STEPS = [
   {
     view: "calendar",
-    navIndex: 0,
+    inDrawer: false,
     title: "Takvim",
     speech: "Günlük ilaçların burada! 📅",
     desc: "Bugün almanız gereken ilaçları takvimde görürsünüz. İlacı aldıkça işaretleyin; uyum oranınız kendiliğinden hesaplanır.",
@@ -13,7 +13,7 @@ const STEPS = [
   },
   {
     view: "scan",
-    navIndex: 1,
+    inDrawer: false,
     title: "Tara / Ekle",
     speech: "İlaç eklemek çok kolay 📸",
     desc: "İlaç kutunuzu veya reçetenizi fotoğraflayın; yapay zeka bilgileri otomatik doldurur. İsterseniz elle de ekleyebilirsiniz.",
@@ -21,7 +21,7 @@ const STEPS = [
   },
   {
     view: "medicines",
-    navIndex: 2,
+    inDrawer: false,
     title: "İlaçlarım",
     speech: "Tüm ilaçların tek yerde 💊",
     desc: "Eklediğiniz ilaçları buradan görüntüler, düzenler veya arşivlersiniz. Stok ve son kullanma tarihi takibi de burada.",
@@ -29,7 +29,7 @@ const STEPS = [
   },
   {
     view: "family",
-    navIndex: 3,
+    inDrawer: false,
     title: "Aile Takip",
     speech: "Sevdiklerini de takip et 👨‍👩‍👧",
     desc: "Paylaşım kodunuzla yakınlarınıza bağlanın. Onların ilaç takibini görebilir, hatırlatma gönderebilirsiniz.",
@@ -37,7 +37,7 @@ const STEPS = [
   },
   {
     view: "summary",
-    navIndex: 4,
+    inDrawer: false,
     title: "Özet",
     speech: "İlerlemen hep gözünün önünde 📊",
     desc: "Haftalık ve aylık ilaç uyum oranınızı, grafiklerle ve istatistiklerle buradan takip edersiniz.",
@@ -45,18 +45,18 @@ const STEPS = [
   },
   {
     view: "assistant",
-    navIndex: 5,
+    inDrawer: true,
     title: "Asistan",
     speech: "Sağlık sorularını bana sor 💬",
-    desc: "İlaçlarınız hakkında merak ettiklerinizi yapay zeka asistana sorabilirsiniz; size anlaşılır yanıtlar verir.",
+    desc: "İlaçların hakkında merak ettiklerini Asistan'a sorabilirsin. Buraya ☰ menüden ya da köşedeki maskota dokunarak ulaşırsın.",
     hint: "Asistan yalnızca sağlık ve ilaç konularında yardımcı olur.",
   },
   {
     view: "pharmacy",
-    navIndex: 6,
+    inDrawer: true,
     title: "Eczane",
     speech: "En yakın nöbetçi eczane 🏥",
-    desc: "Konumunuza en yakın nöbetçi eczaneleri ve çevredeki eczaneleri haritada görürsünüz.",
+    desc: "Konumuna en yakın nöbetçi eczaneleri ve çevredeki eczaneleri haritada gösterir. Buraya ☰ menüden ulaşırsın.",
     hint: "Nöbetçi eczane listesi günde bir kez güncellenir.",
   },
 ];
@@ -88,7 +88,7 @@ function Confetti() {
   );
 }
 
-export default function Tutorial({ open, onNavigate, onClose }) {
+export default function Tutorial({ open, onNavigate, onDrawer, onClose }) {
   const [step, setStep] = useState(-1); // -1 giriş · 0..6 adımlar · 7 final
   const [spotlight, setSpotlight] = useState(null);
   const [mascotPos, setMascotPos] = useState({ left: 0, top: 0 });
@@ -102,21 +102,35 @@ export default function Tutorial({ open, onNavigate, onClose }) {
     }
   }, [open]);
 
-  // Her adımda konumlandırma — spotlight, maskot, kart.
+  // Her adımda ekranı hazırla ve spotlight/maskot/kartı konumlandır.
   useEffect(() => {
     if (!open) return undefined;
+
+    const stepDef = step >= 0 && step < STEPS.length ? STEPS[step] : null;
+    if (stepDef) {
+      if (stepDef.inDrawer) {
+        onDrawer(true); // Asistan/Eczane adımları için burger menüyü aç
+      } else {
+        onDrawer(false);
+        onNavigate(stepDef.view);
+      }
+    } else {
+      onDrawer(false);
+    }
 
     function position() {
       const sw = window.innerWidth;
       const sh = window.innerHeight;
-      if (step < 0 || step >= STEPS.length) {
+      if (!stepDef) {
         setSpotlight(null);
         setMascotPos({ left: Math.round(sw / 2 - FLOAT_WIDTH / 2), top: Math.round(sh * 0.18) });
         setCardTop(Math.round(sh * 0.44));
         return;
       }
-      const navItems = document.querySelectorAll(".nav-item");
-      const el = navItems[STEPS[step].navIndex];
+      const selector = stepDef.inDrawer
+        ? `.side-drawer [data-tut="${stepDef.view}"]`
+        : `.bottom-nav [data-tut="${stepDef.view}"]`;
+      const el = document.querySelector(selector);
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const pad = 7;
@@ -126,22 +140,30 @@ export default function Tutorial({ open, onNavigate, onClose }) {
         width: rect.width + pad * 2,
         height: rect.height + pad * 2,
       });
-      const center = step % 2 === 1 ? sw * 0.6 : sw * 0.4;
-      setMascotPos({
-        left: Math.max(8, Math.min(sw - FLOAT_WIDTH - 8, Math.round(center - FLOAT_WIDTH / 2))),
-        top: Math.max(132, Math.round(rect.top - 246)),
-      });
+      if (stepDef.inDrawer) {
+        // Çekmece solda açık; maskot sağ tarafta dursun.
+        setMascotPos({
+          left: Math.max(8, sw - FLOAT_WIDTH - 12),
+          top: Math.max(140, Math.min(sh - 240, Math.round(rect.top - 70))),
+        });
+      } else {
+        const center = step % 2 === 1 ? sw * 0.6 : sw * 0.4;
+        setMascotPos({
+          left: Math.max(8, Math.min(sw - FLOAT_WIDTH - 8, Math.round(center - FLOAT_WIDTH / 2))),
+          top: Math.max(132, Math.round(rect.top - 246)),
+        });
+      }
       setCardTop(16);
     }
 
-    if (step >= 0 && step < STEPS.length) onNavigate(STEPS[step].view);
-    const timer = window.setTimeout(position, 60);
+    const delay = stepDef && stepDef.inDrawer ? 400 : 70;
+    const timer = window.setTimeout(position, delay);
     window.addEventListener("resize", position);
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener("resize", position);
     };
-  }, [step, open, onNavigate]);
+  }, [step, open, onNavigate, onDrawer]);
 
   if (!open) return null;
 
@@ -151,7 +173,7 @@ export default function Tutorial({ open, onNavigate, onClose }) {
   const speech = isIntro
     ? "Merhaba! Ben Takvi 📅"
     : isFinish
-      ? "Hadi başlayalım! 🎉"
+      ? "Köşede seni bekliyorum! 💬"
       : current.speech;
 
   return (
@@ -195,7 +217,7 @@ export default function Tutorial({ open, onNavigate, onClose }) {
         ) : isFinish ? (
           <>
             <h2>🎉 Hazırsın!</h2>
-            <p>Her şey hazır. İlk ilacını ekleyerek başlayabilirsin. Sağlıklı günler dileriz!</p>
+            <p>Artık her şeyi bana sorabilirsin — sağlık, ilaçların, hatta nöbetçi eczaneler. Sağ üst köşedeki butondan bana ulaş!</p>
             <div className="tut-actions">
               <button className="tut-btn" type="button" onClick={onClose}>Başla! 🚀</button>
             </div>
