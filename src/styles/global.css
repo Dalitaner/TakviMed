@@ -1900,6 +1900,64 @@ textarea:focus {
   font-weight: 800;
 }
 
+.pharmacy-card .pharmacy-duty {
+  display: block;
+  margin-top: 4px;
+  color: #1f7a3d;
+}
+
+.pharmacy-cta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  margin-bottom: 4px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--primary);
+  color: white;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--soft-shadow);
+}
+
+.pharmacy-cta-icon {
+  font-size: 1.7rem;
+}
+
+.pharmacy-cta-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2px;
+}
+
+.pharmacy-cta-text strong {
+  font-size: 1.05rem;
+}
+
+.pharmacy-cta-text small {
+  font-size: 0.8rem;
+  opacity: 0.92;
+}
+
+.pharmacy-cta-arrow {
+  font-size: 1.5rem;
+  opacity: 0.9;
+}
+
+.pharmacy-back {
+  margin-bottom: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
 .pin-card {
   display: grid;
   gap: 14px;

@@ -7,6 +7,7 @@ admin.initializeApp();
 setGlobalOptions({ region: "europe-west1", maxInstances: 10 });
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+const NOSYAPI_KEY = defineSecret("NOSYAPI_KEY");
 const GEMINI_MODEL = "gemini-2.5-flash";
 
 // Gemini "high demand" (503) gibi gecici hatalarda otomatik yeniden deneme.
@@ -81,6 +82,81 @@ exports.scanPrescription = onCall(
     return extracted;
   },
 );
+
+exports.onDutyPharmacies = onCall(
+  { secrets: [NOSYAPI_KEY], timeoutSeconds: 20, invoker: "public" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Nöbetçi eczaneleri görmek için giriş yapmalısınız.");
+    }
+
+    const { latitude, longitude } = request.data || {};
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      throw new HttpsError("invalid-argument", "Geçerli bir konum (enlem/boylam) gerekli.");
+    }
+
+    const pharmacies = await fetchOnDutyPharmacies({
+      apiKey: NOSYAPI_KEY.value(),
+      latitude: lat,
+      longitude: lng,
+    });
+
+    return { pharmacies };
+  },
+);
+
+async function fetchOnDutyPharmacies({ apiKey, latitude, longitude }) {
+  const url = `https://www.nosyapi.com/apiv2/service/pharmacies-on-duty/locations?latitude=${latitude}&longitude=${longitude}`;
+
+  let response;
+  try {
+    response = await fetch(url, { headers: { "X-NSYP": apiKey } });
+  } catch (error) {
+    logger.error("NosyAPI fetch failed", { error: error.message });
+    throw new HttpsError("unavailable", "Nöbetçi eczane servisine ulaşılamadı.");
+  }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    logger.error("NosyAPI non-ok response", { status: response.status, body: body.slice(0, 300) });
+    if (response.status === 401 || response.status === 403) {
+      throw new HttpsError("internal", "Nöbetçi eczane servisi yetkilendirme hatası (API anahtarını kontrol edin).");
+    }
+    if (response.status === 429) {
+      throw new HttpsError("resource-exhausted", "Nöbetçi eczane sorgu limiti doldu, biraz sonra tekrar deneyin.");
+    }
+    throw new HttpsError("internal", "Nöbetçi eczane verisi alınamadı.");
+  }
+
+  const payload = await response.json().catch(() => null);
+  if (!payload || payload.status !== "success" || !Array.isArray(payload.data)) {
+    logger.error("NosyAPI unexpected payload", { payload });
+    throw new HttpsError("internal", (payload && payload.message) || "Nöbetçi eczane verisi okunamadı.");
+  }
+
+  const pharmacies = payload.data
+    .map((item) => ({
+      name: String(item.pharmacyName || "").trim(),
+      address: String(item.address || "").trim(),
+      district: String(item.district || item.town || "").trim(),
+      city: String(item.city || "").trim(),
+      phone: String(item.phone || "").trim(),
+      directions: String(item.directions || "").trim(),
+      dutyStart: String(item.pharmacyDutyStart || "").trim(),
+      dutyEnd: String(item.pharmacyDutyEnd || "").trim(),
+      latitude: Number(item.latitude) || null,
+      longitude: Number(item.longitude) || null,
+    }))
+    .filter((item) => item.name);
+
+  if (pharmacies.length === 0 && payload.data.length > 0) {
+    logger.warn("NosyAPI satır döndü ama isim ayrıştırılamadı", { sample: payload.data[0] });
+  }
+
+  return pharmacies;
+}
 
 async function scanWithGemini({ apiKey, imageBase64, mimeType }) {
   const prompt = `Bu görsel bir reçete, ilaç kutusu veya çoklu ilaç etiketi içeren bir kağıt olabilir. Görselde BİRDEN FAZLA ilaç olabilir (Türkiye'de eczanelerin verdiği reçete kağıtlarında genellikle her ilaç için ayrı bir kutucuk vardır).
