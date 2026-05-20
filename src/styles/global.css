@@ -1212,58 +1212,6 @@ textarea:focus {
   background: white;
 }
 
-.notification-preview {
-  position: fixed;
-  left: 50%;
-  top: calc(10px + env(safe-area-inset-top));
-  z-index: 80;
-  display: grid;
-  grid-template-columns: 42px 1fr;
-  gap: 10px;
-  align-items: center;
-  width: min(calc(100% - 28px), 430px);
-  padding: 11px 12px;
-  border: 1px solid rgba(220, 237, 234, 0.8);
-  border-radius: 18px;
-  color: var(--text-main);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 46px rgba(18, 48, 71, 0.18);
-  backdrop-filter: blur(18px);
-  transform: translateX(-50%);
-  animation: notificationDrop 0.28s ease both;
-}
-
-.notification-preview img {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-}
-
-.notification-preview strong,
-.notification-preview span {
-  display: block;
-}
-
-.notification-preview span {
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  margin-top: 2px;
-}
-
-.notification-demo-button {
-  position: fixed;
-  right: max(18px, calc((100vw - 480px) / 2 + 18px));
-  top: calc(74px + env(safe-area-inset-top));
-  z-index: 25;
-  border: 0;
-  border-radius: 999px;
-  padding: 9px 12px;
-  color: white;
-  background: rgba(15, 95, 143, 0.88);
-  box-shadow: 0 10px 24px rgba(18, 48, 71, 0.18);
-  font-size: 0.76rem;
-  font-weight: 850;
-}
 
 .auth-screen {
   display: grid;
@@ -2105,8 +2053,7 @@ button.scan-action-card,
 .dark-mode .pharmacy-card,
 .dark-mode .scan-panel,
 .dark-mode .side-drawer,
-.dark-mode .assistant-thinking-card,
-.dark-mode .notification-preview {
+.dark-mode .assistant-thinking-card {
   background: var(--card-bg);
 }
 
@@ -2250,9 +2197,9 @@ button.scan-action-card,
 }
 
 .dark-mode .alert-card.danger {
-  color: #f0a9a9;
-  background: #3a2126;
-  border-color: rgba(208, 68, 68, 0.4);
+  color: #ffb3b3;
+  background: #5a232a;
+  border-color: rgba(231, 76, 76, 0.6);
 }
 
 .dark-mode .alert-card.warning {
@@ -2294,11 +2241,16 @@ button.scan-action-card,
   color: #d7f3ff;
 }
 
-/* Danger button / pill (red tint) */
-.dark-mode .danger-button,
+/* Danger button — vivid red */
+.dark-mode .danger-button {
+  color: #ffe0e0;
+  background: #b13b40;
+}
+
+/* Danger pill (expired badge) — vivid red */
 .dark-mode .status-pill.danger {
-  color: #f0a9a9;
-  background: #3a2126;
+  color: #ffe0e0;
+  background: #a5343b;
 }
 
 /* Warning pill / partial day (amber tint) */
@@ -2308,12 +2260,17 @@ button.scan-action-card,
   background: #3a2f1c;
 }
 
-/* Success pill / complete day / family badge (green tint) */
+/* Success pill / family badge (green tint) */
 .dark-mode .status-pill.good,
-.dark-mode .day-cell.complete,
 .dark-mode .family-card small {
   color: #9fe8b8;
   background: #16352a;
+}
+
+/* Completed calendar day — vivid, high-visibility green */
+.dark-mode .day-cell.complete {
+  color: #ffffff;
+  background: #259457;
 }
 
 /* Today cell (blue tint) */
@@ -2348,8 +2305,8 @@ button.scan-action-card,
 
 /* Expiry action card (red tint) */
 .dark-mode .expiry-action-card {
-  background: #3a2126;
-  border-color: rgba(208, 68, 68, 0.4);
+  background: #5a232a;
+  border-color: rgba(231, 76, 76, 0.6);
 }
 
 /* Location strip */
@@ -2678,17 +2635,6 @@ button.scan-action-card,
   to {
     opacity: 1;
     transform: scale(1);
-  }
-}
-
-@keyframes notificationDrop {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -14px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
   }
 }
 

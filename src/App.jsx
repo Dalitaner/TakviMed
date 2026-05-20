@@ -76,7 +76,6 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [onboardingDone, setOnboardingDone] = useState(() => localStorage.getItem("takvimed:onboardingDone") === "1");
   const [authMessage, setAuthMessage] = useState("");
-  const [notificationPreview, setNotificationPreview] = useState(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle("large-text", Boolean(settings.largeText));
@@ -287,19 +286,6 @@ export default function App() {
     }
   }
 
-  function previewMedicationNotification() {
-    const nextItem = meds.todayItems[0];
-    if (!nextItem) {
-      setNotificationPreview({ title: "TakviMed hatırlatma", body: "İlaç saatiniz geldiğinde bildirim burada böyle görünecek." });
-      return;
-    }
-    setNotificationPreview({
-      title: `İlaç zamanı: ${nextItem.time}`,
-      body: `${nextItem.med.name} - ${nextItem.med.dose || "1 doz"}${nextItem.med.foodTiming ? ` · ${nextItem.med.foodTiming}` : ""}`,
-    });
-    window.setTimeout(() => setNotificationPreview(null), 5000);
-  }
-
   function logout() {
     setProfile(null);
     setDrawerOpen(false);
@@ -403,16 +389,6 @@ export default function App() {
         title={title}
         onMenu={() => setDrawerOpen(true)}
       />
-      {notificationPreview ? (
-        <div className="notification-preview">
-          <img src="/icon.svg" alt="" />
-          <div>
-            <strong>{notificationPreview.title}</strong>
-            <span>{notificationPreview.body}</span>
-          </div>
-        </div>
-      ) : null}
-      <button className="notification-demo-button" type="button" onClick={previewMedicationNotification}>Bildirim önizle</button>
       <div className="app-content">
         {activeView === "today" ? <TodayView medications={meds.medications} checked={meds.checked} onToggleTaken={handleToggleTaken} /> : null}
         {activeView === "medicines" ? (
