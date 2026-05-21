@@ -35,13 +35,27 @@ export default function AuthView({ onRegister, onLogin, onForgotPassword, verifi
               type={mode === "login" ? "email" : "text"}
               value={username}
               onChange={(event) => setUsername(event.target.value)}
+              autoComplete={mode === "login" ? "email" : "username"}
+              autoCorrect="off"
+              autoCapitalize="none"
+              spellCheck={false}
               required
             />
           </label>
           {mode === "register" ? (
             <label className="field-label">
               E-posta
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="ornek@mail.com" required />
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="ornek@mail.com"
+                autoComplete="email"
+                autoCorrect="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+              />
             </label>
           ) : null}
           <label className="field-label">

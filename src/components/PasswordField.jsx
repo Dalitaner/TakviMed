@@ -10,6 +10,7 @@ export default function PasswordField({
   inputMode,
   pattern,
   required = false,
+  autoComplete = "off",
 }) {
   return (
     <span className="password-field">
@@ -24,6 +25,10 @@ export default function PasswordField({
         inputMode={inputMode}
         pattern={pattern}
         required={required}
+        autoComplete={autoComplete}
+        autoCorrect="off"
+        autoCapitalize="none"
+        spellCheck={false}
       />
       <button type="button" onClick={onToggle} aria-label={visible ? "Şifreyi gizle" : "Şifreyi göster"}>
         {visible ? <EyeIcon /> : <EyeOffIcon />}
