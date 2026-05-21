@@ -6,7 +6,10 @@ import {
   signOut,
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "./firebase";
+
+const deleteAccountCallable = httpsCallable(functions, "deleteAccount");
 
 const usersKey = "takvimed:users";
 const hashIterations = 120000;
@@ -151,6 +154,38 @@ export async function loginLocalUser({ username, pin }) {
 
 export async function signOutUser() {
   await signOut(auth);
+}
+
+export async function deleteAccount() {
+  if (!auth.currentUser) {
+    return { ok: false, error: "Oturum bulunamadı. Lütfen yeniden giriş yapıp tekrar deneyin." };
+  }
+  try {
+    await deleteAccountCallable();
+    // Yereldeki kullanıcı önbelleğini temizle.
+    const email = auth.currentUser?.email?.toLocaleLowerCase("tr-TR");
+    if (email) {
+      const users = readUsers();
+      delete users[email];
+      writeUsers(users);
+      clearRateLimit(email);
+    }
+    await signOut(auth).catch(() => {});
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: deleteAccountMessage(error) };
+  }
+}
+
+function deleteAccountMessage(error) {
+  const code = error?.code || "";
+  if (code === "functions/unauthenticated") {
+    return "Hesabı silmek için yeniden giriş yapmanız gerekiyor.";
+  }
+  if (code === "functions/unavailable" || code.includes("network")) {
+    return "Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.";
+  }
+  return error?.message || "Hesap silinemedi. Lütfen biraz sonra tekrar deneyin.";
 }
 
 export function verifyLocalEmail(username) {

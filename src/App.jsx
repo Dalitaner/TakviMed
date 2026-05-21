@@ -40,6 +40,7 @@ import {
   validatePin,
   verifyPin,
   createPinCredential,
+  deleteAccount,
   recordFailedAttempt,
   getRateLimit,
   clearRateLimit,
@@ -300,6 +301,20 @@ export default function App() {
     showToast("Çıkış yapıldı.");
   }
 
+  async function handleDeleteAccount() {
+    const result = await deleteAccount();
+    if (!result.ok) {
+      showToast(result.error);
+      return result;
+    }
+    if (profile?.code) localStorage.removeItem(`takvimed:user:${profile.code}`);
+    setProfile(null);
+    setDrawerOpen(false);
+    setUnlocked(true);
+    showToast("Hesabınız ve tüm verileriniz kalıcı olarak silindi.");
+    return result;
+  }
+
   if (!onboardingDone) {
     return (
       <div className="app-frame">
@@ -458,6 +473,7 @@ export default function App() {
             settings={settings}
             onChange={updateSettings}
             onLogout={logout}
+            onDeleteAccount={handleDeleteAccount}
           />
         ) : null}
       </div>

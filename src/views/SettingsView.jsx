@@ -5,7 +5,7 @@ import { createPinCredential, sanitizePin, validatePin, verifyPin } from "../ser
 const reminderOptions = [5, 10, 15, 30];
 const version = "1.0.0";
 
-export default function SettingsView({ settings, onChange, onLogout }) {
+export default function SettingsView({ settings, onChange, onLogout, onDeleteAccount }) {
   const [modal, setModal] = useState(null);
   const [quietStart, setQuietStart] = useState(settings.quietStart || "22:00");
   const [quietEnd, setQuietEnd] = useState(settings.quietEnd || "07:00");
@@ -13,9 +13,31 @@ export default function SettingsView({ settings, onChange, onLogout }) {
   const [visiblePasswordFields, setVisiblePasswordFields] = useState({ old: false, next: false, confirm: false });
   const [passwordError, setPasswordError] = useState("");
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [deleteForm, setDeleteForm] = useState({ pin: "", visible: false, error: "", busy: false });
 
   function togglePasswordField(field) {
     setVisiblePasswordFields((current) => ({ ...current, [field]: !current[field] }));
+  }
+
+  function closeDeleteModal() {
+    setModal(null);
+    setDeleteForm({ pin: "", visible: false, error: "", busy: false });
+  }
+
+  async function confirmDeleteAccount() {
+    const pinValid = settings.pinCredential
+      ? await verifyPin(deleteForm.pin, settings.pinCredential)
+      : deleteForm.pin === settings.pin;
+    if (!pinValid) {
+      setDeleteForm((current) => ({ ...current, error: "PIN hatalı." }));
+      return;
+    }
+    setDeleteForm((current) => ({ ...current, error: "", busy: true }));
+    const result = await onDeleteAccount();
+    if (!result?.ok) {
+      setDeleteForm((current) => ({ ...current, busy: false, error: result?.error || "Hesap silinemedi." }));
+    }
+    // Başarılıysa App profili sıfırlar ve bu ekran kaldırılır; burada ek işlem gerekmez.
   }
 
   function update(patch) {
@@ -61,6 +83,10 @@ export default function SettingsView({ settings, onChange, onLogout }) {
       <SettingsGroup title="HAKKINDA">
         <SettingsRow icon="star" title="Değerlendirme yap" onClick={() => window.open("https://apps.apple.com/", "_blank")} />
         <SettingsRow icon="contact" title="İletişim" onClick={() => { window.location.href = "mailto:destek@takvimed.app?subject=TakviMed%20Destek"; }} />
+      </SettingsGroup>
+
+      <SettingsGroup title="HESAP">
+        <SettingsRow icon="trash" title="Hesabımı sil" danger onClick={() => setModal("delete")} />
       </SettingsGroup>
 
       <footer className="settings-footer">
@@ -191,9 +217,44 @@ export default function SettingsView({ settings, onChange, onLogout }) {
       {privacyOpen ? (
         <SettingsModal title="Gizlilik politikası" onClose={() => setPrivacyOpen(false)}>
           <p className="settings-modal-copy">
-            TakviMed, ilaç takibi için girdiğiniz verileri cihazınızda saklar. E-posta doğrulama, PIN sıfırlama ve aile takibi gibi
-            çevrim içi özellikler backend bağlandığında açık rıza, veri minimizasyonu ve hesap silme ilkeleriyle çalışacak şekilde tasarlanmıştır.
+            TakviMed; hesabınızı, ilaç ve hatırlatma bilgilerinizi Google Firebase altyapısında güvenli şekilde saklar.
+            Verileriniz yalnızca uygulamanın çalışması için kullanılır, üçüncü taraflarla pazarlama amacıyla paylaşılmaz.
+            Hesabınızı ve tüm verilerinizi dilediğiniz zaman <strong>Ayarlar → Hesabımı sil</strong> ile kalıcı olarak silebilirsiniz.
+            Ayrıntılı gizlilik politikası için: <a href="https://takvimed.web.app/gizlilik" target="_blank" rel="noreferrer">takvimed.web.app/gizlilik</a>
           </p>
+        </SettingsModal>
+      ) : null}
+
+      {modal === "delete" ? (
+        <SettingsModal title="Hesabımı sil" onClose={closeDeleteModal}>
+          <div className="time-range-form">
+            <p className="settings-modal-copy">
+              Bu işlem <strong>geri alınamaz.</strong> Hesabın, tüm ilaçların, hatırlatıcıların, aile
+              bağlantıların ve geçmiş kayıtların kalıcı olarak silinir.
+            </p>
+            <label>
+              Onaylamak için PIN'ini gir
+              <PasswordField
+                value={deleteForm.pin}
+                onChange={(event) => setDeleteForm((current) => ({ ...current, pin: sanitizePin(event.target.value), error: "" }))}
+                visible={deleteForm.visible}
+                onToggle={() => setDeleteForm((current) => ({ ...current, visible: !current.visible }))}
+                placeholder="6 rakam"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength="6"
+              />
+            </label>
+            {deleteForm.error ? <p className="settings-error">{deleteForm.error}</p> : null}
+            <button
+              className="danger-button"
+              type="button"
+              disabled={deleteForm.busy || deleteForm.pin.length !== 6}
+              onClick={confirmDeleteAccount}
+            >
+              {deleteForm.busy ? "Siliniyor..." : "Hesabımı Kalıcı Olarak Sil"}
+            </button>
+          </div>
         </SettingsModal>
       ) : null}
     </main>
@@ -257,6 +318,7 @@ function SettingsIcon({ id }) {
     shield: <path d="M14 4 22 7v6c0 5-3 9-8 11-5-2-8-6-8-11V7l8-3Z" />,
     star: <path d="m14 4 3 6 7 .9-5 4.8 1.2 6.8L14 19l-6.2 3.5L9 15.7l-5-4.8 7-.9 3-6Z" />,
     contact: <><path d="M8 21c1-4 3-6 6-6s5 2 6 6" /><circle cx="14" cy="9" r="4" /></>,
+    trash: <path d="M6 8h16M11 8V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M9 8l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13M13 12v6M16 12v6" />,
   };
   return (
     <svg {...common}>

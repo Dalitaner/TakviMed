@@ -107,6 +107,69 @@ exports.onDutyPharmacies = onCall(
   },
 );
 
+// Kullanicinin hesabini ve tum verisini kalici olarak siler (Apple Guideline 5.1.1(v)).
+exports.deleteAccount = onCall(
+  { timeoutSeconds: 60, invoker: "public" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Hesabı silmek için giriş yapmalısınız.");
+    }
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(uid);
+
+    // Kullanici dokumanindan aile kodunu al (familyCodes kaydini silebilmek icin).
+    let familyCode = "";
+    try {
+      const snap = await userRef.get();
+      familyCode = snap.exists ? String(snap.data().familyCode || "") : "";
+    } catch (error) {
+      logger.warn("deleteAccount: kullanıcı dokümanı okunamadı", { uid, error: error.message });
+    }
+
+    // En iyi caba: bu kullanicinin diger kullanicilardaki takip/takipci referanslarini temizle
+    // (basarisiz olsa bile asagidaki ana silme islemi devam eder).
+    try {
+      const [followingSnap, followersSnap] = await Promise.all([
+        userRef.collection("following").get(),
+        userRef.collection("followers").get(),
+      ]);
+      const batch = db.batch();
+      followingSnap.forEach((d) => {
+        batch.delete(db.collection("users").doc(d.id).collection("followers").doc(uid));
+      });
+      followersSnap.forEach((d) => {
+        batch.delete(db.collection("users").doc(d.id).collection("following").doc(uid));
+      });
+      await batch.commit();
+    } catch (error) {
+      logger.warn("deleteAccount: takip referansları temizlenemedi", { uid, error: error.message });
+    }
+
+    // users/{uid} dokumani + tum alt koleksiyonlari (medications, takenLogs, reminders,
+    // followers, following) tek seferde sil.
+    await db.recursiveDelete(userRef);
+
+    // Aile kodu kaydini sil (yalnizca bu kullaniciya aitse).
+    if (familyCode) {
+      const codeRef = db.collection("familyCodes").doc(familyCode);
+      const codeSnap = await codeRef.get().catch(() => null);
+      if (codeSnap && codeSnap.exists && codeSnap.data().ownerUid === uid) {
+        await codeRef.delete().catch(() => {});
+      }
+    }
+
+    // Asistan/tarama limit sayacini sil.
+    await db.collection("usage").doc(uid).delete().catch(() => {});
+
+    // Son adim: Firebase Auth hesabini sil.
+    await admin.auth().deleteUser(uid);
+
+    logger.info("deleteAccount: hesap silindi", { uid });
+    return { ok: true };
+  },
+);
+
 async function fetchOnDutyPharmacies({ apiKey, latitude, longitude }) {
   const url = `https://www.nosyapi.com/apiv2/service/pharmacies-on-duty/locations?latitude=${latitude}&longitude=${longitude}`;
 
