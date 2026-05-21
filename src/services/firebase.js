@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { browserLocalPersistence, indexedDBLocalPersistence, initializeAuth } from "firebase/auth";
+import { initializeFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 
 const firebaseConfig = {
@@ -13,6 +13,14 @@ const firebaseConfig = {
 };
 
 export const firebaseApp = initializeApp(firebaseConfig);
-export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
+// WKWebView'da IndexedDB tabanlı oturum saklama kilitlenebildiği için
+// localStorage'ı önceliyoruz; signInWithEmailAndPassword aksi halde asılı kalıyor.
+export const auth = initializeAuth(firebaseApp, {
+  persistence: [browserLocalPersistence, indexedDBLocalPersistence],
+});
+// WKWebView (Capacitor iOS) WebChannel akışını düzgün taşıyamadığı için
+// Firestore'u long-polling'e zorluyoruz; aksi halde istekler asılı kalıyor.
+export const db = initializeFirestore(firebaseApp, {
+  experimentalForceLongPolling: true,
+});
 export const functions = getFunctions(firebaseApp, "europe-west1");

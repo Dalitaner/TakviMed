@@ -215,7 +215,19 @@ export default function App() {
   }
 
   async function login({ username, pin }) {
-    const result = await loginLocalUser({ username, pin });
+    showToast("Giriş yapılıyor...");
+    let result;
+    try {
+      result = await Promise.race([
+        loginLocalUser({ username, pin }),
+        new Promise((_, reject) =>
+          window.setTimeout(() => reject(new Error("Giriş zaman aşımına uğradı. İnternet bağlantınızı kontrol edip tekrar deneyin.")), 25000),
+        ),
+      ]);
+    } catch (error) {
+      showToast(error?.message || "Giriş yapılamadı.");
+      return;
+    }
     if (!result.ok) {
       showToast(result.error || "Kullanıcı adı veya PIN hatalı.");
       return;
