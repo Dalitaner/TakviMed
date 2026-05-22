@@ -9,6 +9,8 @@ const HINTS = [
   "Sağlıkla ilgili sorularına yardımcı olurum 🩺",
 ];
 
+const DRAG_THRESHOLD = 14; // parmak dokunuşu doğal olarak birkaç piksel oynar
+
 const FIRST_DELAY = 9000; // ilk ipucu ~9 sn sonra
 const VISIBLE_MS = 6000; // ipucu ekranda ~6 sn kalır
 const INTERVAL_MS = 38000; // ipuçları arası ~38 sn
@@ -73,12 +75,16 @@ export default function MascotButton({ onClick }) {
   function handlePointerMove(event) {
     const d = drag.current;
     if (!d.active) return;
-    if (!d.moved && (Math.abs(event.clientX - d.sx) > 6 || Math.abs(event.clientY - d.sy) > 6)) {
+    if (!d.moved && (Math.abs(event.clientX - d.sx) > DRAG_THRESHOLD || Math.abs(event.clientY - d.sy) > DRAG_THRESHOLD)) {
       d.moved = true;
     }
     if (d.moved) {
       setPos(clampPos(event.clientX - d.ox, event.clientY - d.oy));
     }
+  }
+
+  function handlePointerCancel() {
+    drag.current.active = false;
   }
 
   function handlePointerUp() {
@@ -106,6 +112,8 @@ export default function MascotButton({ onClick }) {
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        onClick={() => { if (!drag.current.moved) onClick(); }}
         aria-label="Asistana sor — basılı tutup sürükleyebilirsin"
       >
         <span className="mascot-fab-scale"><Mascot /></span>

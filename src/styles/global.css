@@ -3,18 +3,24 @@
 }
 
 html {
-  min-height: 100%;
+  height: 100%;
   background: #dfeeea;
+  overscroll-behavior: none;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
   font-family: "Plus Jakarta Sans", ui-rounded, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text-main);
   background: radial-gradient(circle at top, rgba(30, 136, 200, 0.14), transparent 34%), #dfeeea;
   -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
 }
 
 button,
@@ -34,8 +40,7 @@ button {
   display: flex;
   flex-direction: column;
   width: min(100%, 480px);
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100%;
   margin: 0 auto;
   background: var(--bg);
   box-shadow: 0 0 36px rgba(18, 48, 71, 0.16);
@@ -131,7 +136,10 @@ button {
 
 .app-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .view-shell {
@@ -1259,8 +1267,10 @@ textarea:focus {
 
 .auth-screen {
   display: grid;
-  min-height: 100vh;
+  height: 100%;
   place-items: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px;
   background: var(--gradient-main);
 }
